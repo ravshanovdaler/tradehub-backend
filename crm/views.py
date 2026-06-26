@@ -1,0 +1,302 @@
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import permissions, status
+from django.db.models import Sum, Count, F
+from django.db.models.functions import TruncMonth
+from django.shortcuts import get_object_or_404
+from orders.models import Order, OrderItem
+from products.models import Product, ProductView
+from .models import CRMCalculation
+
+class SellerCRMStatsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        if not user.is_seller:
+            return Response({'error': 'Only sellers have access to the CRM dashboard.'}, status=status.HTTP_403_FORBIDDEN)
+
+        # 1. Product views aggregate
+        products = Product.objects.filter(seller=user)
+        total_views = products.aggregate(total=Sum('views_count'))['total'] or 0
+
+        # 2. Sales / Order metrics (excluding PENDING and CANCELLED)
+        orders = Order.objects.filter(seller=user).exclude(status__in=['PENDING', 'CANCELLED'])
+        total_sales = orders.aggregate(total=Sum('total_price'))['total'] or 0
+        total_orders = orders.count()
+        
+        avg_order_value = round(float(total_sales) / total_orders, 2) if total_orders > 0 else 0
+        conversion_rate = round((total_orders / total_views) * 100, 2) if total_views > 0 else 0
+
+        # Status distribution
+        status_dist = list(
+            Order.objects.filter(seller=user)
+            .values('status')
+            .annotate(count=Count('id'))
+        )
+
+        # Top Viewed Products
+        top_viewed = list(
+            products.order_by('-views_count')[:5]
+            .values('id', 'name', 'views_count', 'price')
+        )
+
+        # Top Sold Products (aggregate OrderItem)
+        top_sold = list(
+            OrderItem.objects.filter(order__seller=user)
+            .exclude(order__status__in=['PENDING', 'CANCELLED'])
+            .values('product__id', 'product__name')
+            .annotate(units_sold=Sum('quantity'), sales_revenue=Sum(F('quantity') * F('price')))
+            .order_by('-units_sold')[:5]
+        )
+
+        # Monthly Sales Trend (last 6 months)
+        monthly_sales = list(
+            orders.annotate(month=TruncMonth('created_at'))
+            .values('month')
+            .annotate(revenue=Sum('total_price'), order_count=Count('id'))
+            .order_by('month')
+        )
+        
+        # Format monthly sales for chart
+        sales_trend_labels = []
+        sales_trend_data = []
+        for entry in monthly_sales:
+            if entry['month']:
+                month_str = entry['month'].strftime('%b %Y')
+                sales_trend_labels.append(month_str)
+                sales_trend_data.append(float(entry['revenue']))
+
+        # If data is empty, insert default labels
+        if not sales_trend_labels:
+            sales_trend_labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
+            sales_trend_data = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+        # Monthly Product Views Trend
+        views_trend = list(
+            ProductView.objects.filter(product__seller=user)
+            .annotate(month=TruncMonth('timestamp'))
+            .values('month')
+            .annotate(count=Count('id'))
+            .order_by('month')
+        )
+        views_trend_labels = []
+        views_trend_data = []
+        for entry in views_trend:
+            if entry['month']:
+                month_str = entry['month'].strftime('%b %Y')
+                views_trend_labels.append(month_str)
+                views_trend_data.append(entry['count'])
+        if not views_trend_data:
+            views_trend_labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
+            views_trend_data = [0, 0, 0, 0, 0, 0]
+
+        # Financial Breakdown - Customizable
+        calcs = CRMCalculation.objects.filter(user=user)
+        if not calcs.exists():
+            CRMCalculation.objects.create(user=user, name='Logistics Costs', value_type='PERCENTAGE', value=8.00)
+            CRMCalculation.objects.create(user=user, name='Taxes', value_type='PERCENTAGE', value=5.00)
+            CRMCalculation.objects.create(user=user, name='Manufacturing Cost', value_type='PERCENTAGE', value=55.00)
+            calcs = CRMCalculation.objects.filter(user=user)
+
+        order_items = OrderItem.objects.filter(order__in=orders)
+
+        calculations_breakdown = []
+        total_costs = 0
+        for c in calcs:
+            name_lower = c.name.lower()
+            if name_lower == 'manufacturing cost':
+                if c.value_type == 'USD':
+                    has_any_mfg = any(item.product and item.product.manufacturing_cost > 0 for item in order_items)
+                    if has_any_mfg:
+                        cost_val = round(sum(float(item.product.manufacturing_cost) * item.quantity for item in order_items if item.product), 2)
+                    else:
+                        cost_val = float(c.value)
+                else:
+                    mfg_cost_total = 0
+                    for item in order_items:
+                        if item.product and item.product.manufacturing_cost > 0:
+                            mfg_cost_total += float(item.product.manufacturing_cost) * item.quantity
+                        else:
+                            mfg_cost_total += float(item.price) * (float(c.value) / 100.0) * item.quantity
+                    cost_val = round(mfg_cost_total, 2)
+            elif name_lower in ['logistics costs', 'logistics cost', 'transport cost', 'transport costs']:
+                if c.value_type == 'USD':
+                    has_any_transport = any(o.transport_cost > 0 for o in orders)
+                    if has_any_transport:
+                        cost_val = round(sum(float(o.transport_cost) for o in orders), 2)
+                    else:
+                        cost_val = float(c.value)
+                else:
+                    logistics_cost_total = 0
+                    for order in orders:
+                        if order.transport_cost > 0:
+                            logistics_cost_total += float(order.transport_cost)
+                        else:
+                            logistics_cost_total += float(order.total_price) * (float(c.value) / 100.0)
+                    cost_val = round(logistics_cost_total, 2)
+            else:
+                # Other calculations (Taxes, custom parameters, etc.)
+                if c.value_type == 'PERCENTAGE':
+                    cost_val = round(float(total_sales) * (float(c.value) / 100.0), 2)
+                else:
+                    cost_val = float(c.value)
+            
+            total_costs += cost_val
+            calculations_breakdown.append({
+                'id': c.id,
+                'name': c.name,
+                'value_type': c.value_type,
+                'value': float(c.value),
+                'cost': cost_val
+            })
+
+        net_profit = round(float(total_sales) - total_costs, 2)
+
+        finance_breakdown = {
+            'revenue': float(total_sales),
+            'calculations': calculations_breakdown,
+            'profit': net_profit
+        }
+
+        return Response({
+            'overview': {
+                'total_views': total_views,
+                'total_sales': float(total_sales),
+                'total_orders': total_orders,
+                'avg_order_value': avg_order_value,
+                'conversion_rate': conversion_rate
+            },
+            'status_distribution': status_dist,
+            'top_viewed_products': top_viewed,
+            'top_sold_products': top_sold,
+            'sales_trend': {
+                'labels': sales_trend_labels,
+                'data': sales_trend_data
+            },
+            'views_trend': {
+                'labels': views_trend_labels,
+                'data': views_trend_data
+            },
+            'finance': finance_breakdown
+        })
+
+
+class CRMCalculationView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        if not user.is_seller:
+            return Response({'error': 'Only sellers can manage calculations.'}, status=status.HTTP_403_FORBIDDEN)
+        
+        calcs = CRMCalculation.objects.filter(user=user)
+        if not calcs.exists():
+            CRMCalculation.objects.create(user=user, name='Logistics Costs', value_type='PERCENTAGE', value=8.00)
+            CRMCalculation.objects.create(user=user, name='Taxes', value_type='PERCENTAGE', value=5.00)
+            CRMCalculation.objects.create(user=user, name='Manufacturing Cost', value_type='PERCENTAGE', value=55.00)
+            calcs = CRMCalculation.objects.filter(user=user)
+
+        payload = [{'id': c.id, 'name': c.name, 'value_type': c.value_type, 'value': float(c.value)} for c in calcs]
+        return Response(payload, status=status.HTTP_200_OK)
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        if not user.is_seller:
+            return Response({'error': 'Only sellers can manage calculations.'}, status=status.HTTP_403_FORBIDDEN)
+        
+        name = request.data.get('name')
+        value_type = request.data.get('value_type', 'PERCENTAGE')
+        value = request.data.get('value')
+
+        if not name or value is None:
+            return Response({'error': 'Name and value are required fields.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if name.strip().lower() in ['manufacturing cost', 'logistics costs', 'logistics cost', 'transport cost', 'transport costs']:
+            return Response({'error': 'Default system calculations (Manufacturing Cost, Logistics Costs) cannot be overridden or created.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if value_type not in ['PERCENTAGE', 'USD']:
+            return Response({'error': 'value_type must be PERCENTAGE or USD.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            from decimal import Decimal
+            value_dec = Decimal(str(value))
+            if value_type == 'PERCENTAGE':
+                if value_dec < 0 or value_dec > 100:
+                    return Response({'error': 'Percentage must be between 0 and 100.'}, status=status.HTTP_400_BAD_REQUEST)
+            else: # USD
+                if value_dec < 0:
+                    return Response({'error': 'USD value must be greater than or equal to 0.'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            return Response({'error': 'Invalid value.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        calc = CRMCalculation.objects.create(
+            user=user,
+            name=name,
+            value_type=value_type,
+            value=value_dec
+        )
+        return Response({
+            'id': calc.id,
+            'name': calc.name,
+            'value_type': calc.value_type,
+            'value': float(calc.value)
+        }, status=status.HTTP_201_CREATED)
+
+
+class CRMCalculationDetailView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def put(self, request, pk, *args, **kwargs):
+        user = request.user
+        if not user.is_seller:
+            return Response({'error': 'Only sellers can edit calculations.'}, status=status.HTTP_403_FORBIDDEN)
+        
+        calc = get_object_or_404(CRMCalculation, id=pk, user=user)
+        if calc.name.lower() in ['manufacturing cost', 'logistics costs', 'logistics cost', 'transport cost', 'transport costs']:
+            return Response({'error': 'Default system calculations (Manufacturing Cost, Logistics Costs) cannot be updated globally.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        name = request.data.get('name')
+        value_type = request.data.get('value_type')
+        value = request.data.get('value')
+
+        if not name or value is None or not value_type:
+            return Response({'error': 'Name, value, and value_type are required fields.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if value_type not in ['PERCENTAGE', 'USD']:
+            return Response({'error': 'value_type must be PERCENTAGE or USD.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            from decimal import Decimal
+            value_dec = Decimal(str(value))
+            if value_type == 'PERCENTAGE':
+                if value_dec < 0 or value_dec > 100:
+                    return Response({'error': 'Percentage must be between 0 and 100.'}, status=status.HTTP_400_BAD_REQUEST)
+            else: # USD
+                if value_dec < 0:
+                    return Response({'error': 'USD value must be greater than or equal to 0.'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            return Response({'error': 'Invalid value.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        calc.name = name
+        calc.value_type = value_type
+        calc.value = value_dec
+        calc.save()
+
+        return Response({
+            'id': calc.id,
+            'name': calc.name,
+            'value_type': calc.value_type,
+            'value': float(calc.value)
+        }, status=status.HTTP_200_OK)
+
+    def delete(self, request, pk, *args, **kwargs):
+        user = request.user
+        if not user.is_seller:
+            return Response({'error': 'Only sellers can delete calculations.'}, status=status.HTTP_403_FORBIDDEN)
+        
+        calc = get_object_or_404(CRMCalculation, id=pk, user=user)
+        if calc.name.lower() in ['manufacturing cost', 'logistics costs', 'logistics cost', 'transport cost', 'transport costs']:
+            return Response({'error': 'Default system calculations (Manufacturing Cost, Logistics Costs) cannot be deleted.'}, status=status.HTTP_400_BAD_REQUEST)
+        calc.delete()
+        return Response({'message': 'Calculation deleted successfully.'}, status=status.HTTP_200_OK)
