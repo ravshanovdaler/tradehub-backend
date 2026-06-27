@@ -35,8 +35,10 @@ class ProductVariant(models.Model):
 class ProductReview(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='reviews')
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    rating = models.IntegerField(default=5)
+    rating = models.IntegerField(default=5, null=True, blank=True)
     comment = models.TextField()
+    media = models.FileField(upload_to='review_media/', blank=True, null=True)
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='replies')
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -49,27 +51,6 @@ class ProductView(models.Model):
 
     def __str__(self):
         return f"View of {self.product.name} at {self.timestamp}"
-
-
-# ─── Comments (social-style, supports media & nested replies) ──────────────────
-
-class ProductComment(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='comments')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='product_comments')
-    text = models.TextField(blank=True)
-    # Optional media attachment (image or video)
-    media = models.FileField(upload_to='comment_media/', null=True, blank=True)
-    # Parent comment for nested replies (null = top-level comment)
-    parent = models.ForeignKey(
-        'self', on_delete=models.CASCADE, null=True, blank=True, related_name='replies'
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['created_at']
-
-    def __str__(self):
-        return f"Comment by {self.user.username} on {self.product.name}"
 
 
 # ─── Likes ─────────────────────────────────────────────────────────────────────

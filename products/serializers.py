@@ -1,6 +1,5 @@
 from rest_framework import serializers
-from .models import Product, ProductImage, ProductVariant, ProductReview, ProductComment, ProductLike, SavedProduct, ProductDescriptionImage
-
+from .models import Product, ProductImage, ProductVariant, ProductReview, ProductLike, SavedProduct, ProductDescriptionImage
 
 
 class ProductImageSerializer(serializers.ModelSerializer):
@@ -15,7 +14,6 @@ class ProductDescriptionImageSerializer(serializers.ModelSerializer):
         fields = ['id', 'image']
 
 
-
 class ProductVariantSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductVariant
@@ -24,53 +22,26 @@ class ProductVariantSerializer(serializers.ModelSerializer):
 
 class ProductReviewSerializer(serializers.ModelSerializer):
     user_username = serializers.CharField(source='user.username', read_only=True)
+    media_url = serializers.SerializerMethodField()
+    replies = serializers.SerializerMethodField()
+
+    def get_media_url(self, obj):
+        request = self.context.get('request')
+        if obj.media and request:
+            return request.build_absolute_uri(obj.media.url)
+        return None
+
+    def get_replies(self, obj):
+        if obj.parent_id is not None:
+            return []
+        replies = obj.replies.all()
+        return ProductReviewSerializer(replies, many=True, context=self.context).data
 
     class Meta:
         model = ProductReview
-        fields = ['id', 'user', 'user_username', 'rating', 'comment', 'created_at']
-        read_only_fields = ['user', 'user_username', 'created_at']
-
-
-# ─── Comments ──────────────────────────────────────────────────────────────────
-
-class ProductCommentReplySerializer(serializers.ModelSerializer):
-    """Serializer for nested replies (one level deep)."""
-    user_username = serializers.CharField(source='user.username', read_only=True)
-    media_url = serializers.SerializerMethodField()
-
-    def get_media_url(self, obj):
-        request = self.context.get('request')
-        if obj.media and request:
-            return request.build_absolute_uri(obj.media.url)
-        return None
-
-    class Meta:
-        model = ProductComment
-        fields = ['id', 'user', 'user_username', 'text', 'media_url', 'created_at']
-        read_only_fields = ['user', 'user_username', 'created_at']
-
-
-class ProductCommentSerializer(serializers.ModelSerializer):
-    user_username = serializers.CharField(source='user.username', read_only=True)
-    replies = ProductCommentReplySerializer(many=True, read_only=True)
-    media_url = serializers.SerializerMethodField()
-
-    def get_media_url(self, obj):
-        request = self.context.get('request')
-        if obj.media and request:
-            return request.build_absolute_uri(obj.media.url)
-        return None
-
-    class Meta:
-        model = ProductComment
-        fields = [
-            'id', 'user', 'user_username', 'text', 'media_url',
-            'parent', 'replies', 'created_at'
-        ]
+        fields = ['id', 'user', 'user_username', 'rating', 'comment', 'media_url', 'replies', 'parent', 'created_at']
         read_only_fields = ['user', 'user_username', 'created_at', 'replies']
 
-
-# ─── Likes ─────────────────────────────────────────────────────────────────────
 
 class ProductLikeSerializer(serializers.ModelSerializer):
     user_username = serializers.CharField(source='user.username', read_only=True)
@@ -78,28 +49,6 @@ class ProductLikeSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductLike
         fields = ['id', 'user', 'user_username', 'created_at']
-        read_only_fields = ['user', 'user_username', 'created_at']
-
-
-# ─── Saved Products ────────────────────────────────────────────────────────────
-
-class SavedProductSerializer(serializers.ModelSerializer):
-    product_name = serializers.CharField(source='product.name', read_only=True)
-    product_price = serializers.DecimalField(source='product.price', max_digits=12, decimal_places=2, read_only=True)
-    product_images = serializers.SerializerMethodField()
-    product_created_at = serializers.DateTimeField(source='product.created_at', read_only=True)
-
-    def get_product_images(self, obj):
-        request = self.context.get('request')
-        images = obj.product.images.all()
-        if request:
-            return [request.build_absolute_uri(img.image.url) for img in images if img.image]
-        return []
-
-    class Meta:
-        model = SavedProduct
-        fields = ['id', 'product', 'product_name', 'product_price', 'product_images', 'product_created_at', 'saved_at']
-        read_only_fields = ['saved_at']
 
 
 # ─── Main Product Serializer ───────────────────────────────────────────────────
@@ -108,7 +57,7 @@ class ProductSerializer(serializers.ModelSerializer):
     images = ProductImageSerializer(many=True, read_only=True)
     description_images = ProductDescriptionImageSerializer(many=True, read_only=True)
     variants = ProductVariantSerializer(many=True, read_only=True)
-    reviews = ProductReviewSerializer(many=True, read_only=True)
+    reviews = serializers.SerializerMethodField()
 
     seller_company = serializers.SerializerMethodField()
     seller_username = serializers.CharField(source='seller.username', read_only=True)
@@ -119,6 +68,11 @@ class ProductSerializer(serializers.ModelSerializer):
     total_orders_ann = serializers.SerializerMethodField()
     is_liked = serializers.SerializerMethodField()
     is_saved = serializers.SerializerMethodField()
+
+    def get_reviews(self, obj):
+        # Fetch only top-level reviews (parent=None)
+        reviews = obj.reviews.filter(parent=None)
+        return ProductReviewSerializer(reviews, many=True, context=self.context).data
 
     def get_seller_company(self, obj):
         try:
@@ -179,5 +133,15 @@ class ProductSerializer(serializers.ModelSerializer):
             'is_liked', 'is_saved',
             'images', 'description_images', 'variants', 'reviews', 'created_at'
         ]
-
         read_only_fields = ['seller', 'views_count', 'created_at']
+
+
+# ─── Saved Products ────────────────────────────────────────────────────────────
+
+class SavedProductSerializer(serializers.ModelSerializer):
+    product = ProductSerializer(read_only=True)
+
+    class Meta:
+        model = SavedProduct
+        fields = ['id', 'product', 'saved_at']
+        read_only_fields = ['saved_at']

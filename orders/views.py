@@ -94,6 +94,33 @@ class OrderViewSet(viewsets.ModelViewSet):
                     }
                 )
 
+        if new_status == 'RECEIVED' and old_status != 'RECEIVED':
+            from chat.models import ChatRoom, ChatMessage
+            from channels.layers import get_channel_layer
+            from asgiref.sync import async_to_sync
+
+            room, _ = ChatRoom.objects.get_or_create(buyer=order.buyer, seller=order.seller)
+            msg_text = f"Order #{order.id} has been marked as successfully received."
+            msg = ChatMessage.objects.create(
+                room=room,
+                sender=request.user,
+                message=msg_text
+            )
+            # Notify websocket channel layer
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                async_to_sync(channel_layer.group_send)(
+                    f'chat_{room.id}',
+                    {
+                        'type': 'chat_message',
+                        'message_id': msg.id,
+                        'message': msg.message,
+                        'sender_id': msg.sender.id,
+                        'sender_username': msg.sender.username,
+                        'timestamp': msg.timestamp.isoformat()
+                    }
+                )
+
         # Automatically append a location status log
         description = f"Status updated to: {order.get_status_display()}"
         

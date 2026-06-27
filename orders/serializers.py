@@ -27,6 +27,8 @@ class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True)
     locations = OrderLocationSerializer(many=True, read_only=True)
     buyer_username = serializers.CharField(source='buyer.username', read_only=True)
+    buyer_delivery_address = serializers.SerializerMethodField()
+    buyer_phone = serializers.CharField(source='buyer.phone_number', read_only=True)
     seller_company = serializers.SerializerMethodField()
 
     def get_seller_company(self, obj):
@@ -35,10 +37,20 @@ class OrderSerializer(serializers.ModelSerializer):
         except Exception:
             return obj.seller.username
 
+    def get_buyer_delivery_address(self, obj):
+        try:
+            return obj.buyer.buyer_profile.delivery_address
+        except Exception:
+            return ""
+
     class Meta:
         model = Order
-        fields = ['id', 'buyer', 'buyer_username', 'seller', 'seller_company', 'status', 'total_price', 'transport_cost', 'items', 'locations', 'created_at', 'updated_at']
-        read_only_fields = ['buyer', 'seller', 'buyer_username', 'seller_company', 'total_price', 'created_at', 'updated_at']
+        fields = [
+            'id', 'buyer', 'buyer_username', 'buyer_delivery_address', 'buyer_phone',
+            'seller', 'seller_company', 'status', 'total_price', 'transport_cost',
+            'items', 'locations', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['buyer', 'seller', 'buyer_username', 'buyer_delivery_address', 'buyer_phone', 'seller_company', 'total_price', 'created_at', 'updated_at']
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')

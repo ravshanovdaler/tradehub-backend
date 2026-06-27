@@ -10,6 +10,7 @@ class Order(models.Model):
         ('PROCESSING', 'Processing'),
         ('SHIPPED', 'Shipped'),
         ('DELIVERED', 'Delivered'),
+        ('RECEIVED', 'Received'),
         ('CANCELLED', 'Cancelled'),
     ]
 

@@ -6,14 +6,14 @@ from django.db import transaction
 from django.db.models import Count, Sum, Q
 from .models import (
     Product, ProductImage, ProductVariant, ProductReview, ProductView,
-    ProductComment, ProductLike, SavedProduct, ProductDescriptionImage
+    ProductLike, SavedProduct, ProductDescriptionImage
 )
 from .serializers import (
     ProductSerializer, ProductImageSerializer, ProductVariantSerializer,
-    ProductReviewSerializer, ProductCommentSerializer, ProductLikeSerializer,
+    ProductReviewSerializer, ProductLikeSerializer,
     SavedProductSerializer, ProductDescriptionImageSerializer
 )
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
 
 
@@ -189,72 +189,55 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     # ── Reviews ───────────────────────────────────────────────────────────────
 
-    @action(detail=True, methods=['POST'], permission_classes=[permissions.IsAuthenticated])
+    @action(detail=True, methods=['POST'], permission_classes=[permissions.IsAuthenticated],
+            parser_classes=[JSONParser, MultiPartParser, FormParser])
     def add_review(self, request, pk=None):
         product = self.get_object()
-        if not request.user.is_buyer:
-            return Response({'error': 'Only buyers can leave reviews.'}, status=status.HTTP_403_FORBIDDEN)
-
-        serializer = ProductReviewSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save(product=product, user=request.user)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    # ── Comments (social-style with media & replies) ──────────────────────────
-
-    @action(detail=True, methods=['GET'], permission_classes=[permissions.AllowAny])
-    def list_comments(self, request, pk=None):
-        """List all top-level comments (with nested replies) for a product."""
-        product = self.get_object()
-        comments = ProductComment.objects.filter(product=product, parent=None)
-        serializer = ProductCommentSerializer(comments, many=True, context={'request': request})
-        return Response(serializer.data)
-
-    @action(detail=True, methods=['POST'], permission_classes=[permissions.IsAuthenticated],
-            parser_classes=[MultiPartParser, FormParser])
-    def add_comment(self, request, pk=None):
-        """Add a comment (optionally with image/video media and parent for reply)."""
-        product = self.get_object()
-        text = request.data.get('text', '').strip()
-        media_file = request.FILES.get('media')
         parent_id = request.data.get('parent')
-
-        if not text and not media_file:
-            return Response({'error': 'Comment must have text or media.'}, status=status.HTTP_400_BAD_REQUEST)
 
         parent = None
         if parent_id:
             try:
-                parent = ProductComment.objects.get(id=parent_id, product=product)
-            except ProductComment.DoesNotExist:
-                return Response({'error': 'Parent comment not found.'}, status=status.HTTP_404_NOT_FOUND)
+                parent = ProductReview.objects.get(id=parent_id, product=product)
+            except ProductReview.DoesNotExist:
+                return Response({'error': 'Parent review not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        comment = ProductComment.objects.create(
+        if not parent:
+            # Top-level review. Only buyers can review.
+            if not request.user.is_buyer:
+                return Response({'error': 'Only buyers can leave reviews.'}, status=status.HTTP_403_FORBIDDEN)
+        else:
+            # Reply review. Only manufacturer of this product can reply.
+            if product.seller != request.user:
+                return Response({'error': 'Only the manufacturer can reply to reviews on this product.'}, status=status.HTTP_403_FORBIDDEN)
+
+        rating = request.data.get('rating')
+        if rating is not None:
+            try:
+                rating = int(rating)
+            except ValueError:
+                rating = 5
+        elif not parent:
+            rating = 5
+        else:
+            rating = None
+
+        comment = request.data.get('comment', '').strip()
+        media_file = request.FILES.get('media')
+
+        if not comment and not media_file:
+            return Response({'error': 'Review must have comment text or media.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        review = ProductReview.objects.create(
             product=product,
             user=request.user,
-            text=text,
+            rating=rating,
+            comment=comment,
             media=media_file,
-            parent=parent,
+            parent=parent
         )
-        serializer = ProductCommentSerializer(comment, context={'request': request})
+        serializer = ProductReviewSerializer(review, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    @action(detail=True, methods=['DELETE'], permission_classes=[permissions.IsAuthenticated],
-            url_path=r'delete_comment/(?P<comment_id>\d+)')
-    def delete_comment(self, request, pk=None, comment_id=None):
-        """Delete a comment (only the author can delete their own comment)."""
-        product = self.get_object()
-        try:
-            comment = ProductComment.objects.get(id=comment_id, product=product)
-        except ProductComment.DoesNotExist:
-            return Response({'error': 'Comment not found.'}, status=status.HTTP_404_NOT_FOUND)
-
-        if comment.user != request.user and not request.user.is_staff:
-            return Response({'error': 'You can only delete your own comments.'}, status=status.HTTP_403_FORBIDDEN)
-
-        comment.delete()
-        return Response({'message': 'Comment deleted.'}, status=status.HTTP_200_OK)
 
     # ── Likes ─────────────────────────────────────────────────────────────────
 
@@ -294,6 +277,21 @@ class ProductViewSet(viewsets.ModelViewSet):
         """List all products saved by the authenticated user."""
         saved = SavedProduct.objects.filter(user=request.user).select_related('product')
         serializer = SavedProductSerializer(saved, many=True, context={'request': request})
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['GET'], permission_classes=[permissions.IsAuthenticated])
+    def my_liked(self, request):
+        """List all products liked by the authenticated user."""
+        liked_products = Product.objects.filter(likes__user=request.user)
+        serializer = self.get_serializer(liked_products, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['GET'], permission_classes=[permissions.IsAuthenticated])
+    def my_reviews(self, request):
+        """List all reviews written by the authenticated user."""
+        from .models import ProductReview
+        reviews = ProductReview.objects.filter(user=request.user).select_related('product')
+        serializer = ProductReviewSerializer(reviews, many=True, context={'request': request})
         return Response(serializer.data)
 
     # ── Share ─────────────────────────────────────────────────────────────────
