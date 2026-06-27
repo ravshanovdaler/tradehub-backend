@@ -38,21 +38,29 @@ class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model = Order
         fields = ['id', 'buyer', 'buyer_username', 'seller', 'seller_company', 'status', 'total_price', 'transport_cost', 'items', 'locations', 'created_at', 'updated_at']
-        read_only_fields = ['buyer', 'seller', 'total_price', 'created_at', 'updated_at']
+        read_only_fields = ['buyer', 'seller', 'buyer_username', 'seller_company', 'total_price', 'created_at', 'updated_at']
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')
-        buyer = self.context['request'].user
+        creator = self.context['request'].user
 
-        if not buyer.is_buyer:
-            raise serializers.ValidationError("Only registered buyers/retailers can place wholesale orders.")
-        
         if not items_data:
             raise serializers.ValidationError("An order must have at least one product item.")
 
-            
-        first_product = items_data[0]['product']
-        seller = first_product.seller
+        if creator.is_buyer:
+            buyer = creator
+            first_product = items_data[0]['product']
+            seller = first_product.seller
+        else:
+            # Creator is seller. Check for buyer in request data.
+            buyer_id = self.context['request'].data.get('buyer')
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            try:
+                buyer = User.objects.get(id=buyer_id, is_buyer=True)
+            except User.DoesNotExist:
+                raise serializers.ValidationError("Valid buyer ID must be specified for seller-created orders.")
+            seller = creator
         
         for item in items_data:
             if item['product'].seller != seller:
@@ -138,7 +146,8 @@ class OrderSerializer(serializers.ModelSerializer):
             msg = ChatMessage.objects.create(
                 room=room,
                 sender=buyer,
-                message=message_body
+                message=message_body,
+                order=order
             )
 
             # Broadcast via WebSocket channel layer
@@ -154,6 +163,9 @@ class OrderSerializer(serializers.ModelSerializer):
                         'message': msg.message,
                         'sender_id': buyer.id,
                         'sender_username': buyer.username,
+                        'order_id': order.id,
+                        'order_status': order.status,
+                        'order_total_price': float(order.total_price),
                         'timestamp': msg.timestamp.isoformat()
                     }
                 )

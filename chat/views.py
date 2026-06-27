@@ -63,3 +63,51 @@ class ChatRoomViewSet(viewsets.ModelViewSet):
                 
         serializer = self.get_serializer(new_rooms, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=['POST'])
+    def send_media(self, request, pk=None):
+        room = self.get_object()
+        if room.buyer != request.user and room.seller != request.user:
+            return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
+        
+        media_file = request.FILES.get('media')
+        if not media_file:
+            return Response({'error': 'No media file provided.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create message with media
+        msg = ChatMessage.objects.create(
+            room=room,
+            sender=request.user,
+            message=request.data.get('message', ''),
+            media=media_file
+        )
+        
+        # Notify WebSocket channel layer
+        from asgiref.sync import async_to_sync
+        from channels.layers import get_channel_layer
+        channel_layer = get_channel_layer()
+        if channel_layer:
+            async_to_sync(channel_layer.group_send)(
+                f'chat_{room.id}',
+                {
+                    'type': 'chat_message',
+                    'message_id': msg.id,
+                    'message': msg.message or '',
+                    'media_url': request.build_absolute_uri(msg.media.url) if msg.media else None,
+                    'sender_id': msg.sender.id,
+                    'sender_username': msg.sender.username,
+                    'timestamp': msg.timestamp.isoformat()
+                }
+            )
+        
+        serializer = ChatMessageSerializer(msg, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['POST'])
+    def mark_as_read(self, request, pk=None):
+        room = self.get_object()
+        if room.buyer != request.user and room.seller != request.user:
+            return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
+        
+        room.messages.filter(is_read=False).exclude(sender=request.user).update(is_read=True)
+        return Response({'success': True})

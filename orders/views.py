@@ -20,8 +20,10 @@ class OrderViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['POST'], permission_classes=[permissions.IsAuthenticated])
     def update_status(self, request, pk=None):
         order = self.get_object()
-        if order.seller != request.user:
-            return Response({'error': 'Only the manufacturer/seller of this order can update the status.'}, status=status.HTTP_403_FORBIDDEN)
+        is_seller = order.seller == request.user
+        is_buyer = order.buyer == request.user
+        if not is_seller and not is_buyer:
+            return Response({'error': 'Only participants of this order can update the status.'}, status=status.HTTP_403_FORBIDDEN)
             
         new_status = request.data.get('status')
         valid_statuses = [choice[0] for choice in Order.STATUS_CHOICES]
@@ -32,6 +34,9 @@ class OrderViewSet(viewsets.ModelViewSet):
         order.status = new_status
         
         transport_cost = request.data.get('transport_cost')
+        if transport_cost == "" or transport_cost is None:
+            transport_cost = None
+
         if transport_cost is not None:
             try:
                 from decimal import Decimal
@@ -95,6 +100,11 @@ class OrderViewSet(viewsets.ModelViewSet):
         # Get coordinates from request data - no longer defaulting to Shanghai
         lat = request.data.get('latitude')
         lng = request.data.get('longitude')
+
+        if lat == "" or lat is None:
+            lat = None
+        if lng == "" or lng is None:
+            lng = None
         
         if lat is None or lng is None:
             seller_profile = getattr(order.seller, 'seller_profile', None)

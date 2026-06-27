@@ -547,7 +547,7 @@ class CompanyProfileView(APIView):
             'company_name': profile.company_name,
             'business_address': profile.business_address,
             'company_description': profile.company_description,
-            'company_logo': profile.company_logo.url if profile.company_logo else None,
+            'company_logo': f"http://127.0.0.1:8000{profile.company_logo.url}" if profile.company_logo else None,
             'is_verified': profile.is_verified,
             'orders_made': orders_made,
             'likes_count': likes_count,

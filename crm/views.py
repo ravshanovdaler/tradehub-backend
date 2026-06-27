@@ -91,57 +91,26 @@ class SellerCRMStatsView(APIView):
             views_trend_labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
             views_trend_data = [0, 0, 0, 0, 0, 0]
 
-        # Financial Breakdown - Customizable
+        # Financial Breakdown - Deduct actual manufacturing & transport costs as baseline, then apply custom user calculations
         calcs = CRMCalculation.objects.filter(user=user)
-        if not calcs.exists():
-            CRMCalculation.objects.create(user=user, name='Logistics Costs', value_type='PERCENTAGE', value=8.00)
-            CRMCalculation.objects.create(user=user, name='Taxes', value_type='PERCENTAGE', value=5.00)
-            CRMCalculation.objects.create(user=user, name='Manufacturing Cost', value_type='PERCENTAGE', value=55.00)
-            calcs = CRMCalculation.objects.filter(user=user)
-
         order_items = OrderItem.objects.filter(order__in=orders)
 
+        actual_mfg_cost = sum(float(item.product.manufacturing_cost or 0) * item.quantity for item in order_items if item.product)
+        actual_logistics_cost = sum(float(o.transport_cost or 0) for o in orders)
+
+        total_costs = float(actual_mfg_cost + actual_logistics_cost)
+        total_tax = 0.0
+
         calculations_breakdown = []
-        total_costs = 0
         for c in calcs:
-            name_lower = c.name.lower()
-            if name_lower == 'manufacturing cost':
-                if c.value_type == 'USD':
-                    has_any_mfg = any(item.product and item.product.manufacturing_cost > 0 for item in order_items)
-                    if has_any_mfg:
-                        cost_val = round(sum(float(item.product.manufacturing_cost) * item.quantity for item in order_items if item.product), 2)
-                    else:
-                        cost_val = float(c.value)
-                else:
-                    mfg_cost_total = 0
-                    for item in order_items:
-                        if item.product and item.product.manufacturing_cost > 0:
-                            mfg_cost_total += float(item.product.manufacturing_cost) * item.quantity
-                        else:
-                            mfg_cost_total += float(item.price) * (float(c.value) / 100.0) * item.quantity
-                    cost_val = round(mfg_cost_total, 2)
-            elif name_lower in ['logistics costs', 'logistics cost', 'transport cost', 'transport costs']:
-                if c.value_type == 'USD':
-                    has_any_transport = any(o.transport_cost > 0 for o in orders)
-                    if has_any_transport:
-                        cost_val = round(sum(float(o.transport_cost) for o in orders), 2)
-                    else:
-                        cost_val = float(c.value)
-                else:
-                    logistics_cost_total = 0
-                    for order in orders:
-                        if order.transport_cost > 0:
-                            logistics_cost_total += float(order.transport_cost)
-                        else:
-                            logistics_cost_total += float(order.total_price) * (float(c.value) / 100.0)
-                    cost_val = round(logistics_cost_total, 2)
+            if c.value_type == 'PERCENTAGE':
+                cost_val = round(float(total_sales) * (float(c.value) / 100.0), 2)
             else:
-                # Other calculations (Taxes, custom parameters, etc.)
-                if c.value_type == 'PERCENTAGE':
-                    cost_val = round(float(total_sales) * (float(c.value) / 100.0), 2)
-                else:
-                    cost_val = float(c.value)
+                cost_val = float(c.value)
             
+            if 'tax' in c.name.lower() or 'vat' in c.name.lower():
+                total_tax += cost_val
+
             total_costs += cost_val
             calculations_breakdown.append({
                 'id': c.id,
@@ -153,10 +122,32 @@ class SellerCRMStatsView(APIView):
 
         net_profit = round(float(total_sales) - total_costs, 2)
 
+        # Top Products: combine views and sold data
+        top_products = []
+        for p in products.order_by('-views_count')[:10]:
+            revenue = float(OrderItem.objects.filter(
+                order__seller=user, product=p
+            ).exclude(order__status__in=['PENDING', 'CANCELLED']).aggregate(
+                r=Sum(F('quantity') * F('price'))
+            )['r'] or 0)
+            top_products.append({
+                'id': p.id,
+                'name': p.name,
+                'price': float(p.price),
+                'views_count': p.views_count,
+                'total_orders_ann': OrderItem.objects.filter(
+                    order__seller=user, product=p
+                ).exclude(order__status__in=['PENDING', 'CANCELLED']).count(),
+                'revenue': revenue,
+            })
+
         finance_breakdown = {
             'revenue': float(total_sales),
-            'calculations': calculations_breakdown,
-            'profit': net_profit
+            'tax': round(total_tax, 2),
+            'logistics': float(actual_logistics_cost),
+            'manufacturing': float(actual_mfg_cost),
+            'profit': net_profit,
+            'calculations': calculations_breakdown
         }
 
         return Response({
@@ -165,20 +156,30 @@ class SellerCRMStatsView(APIView):
                 'total_sales': float(total_sales),
                 'total_orders': total_orders,
                 'avg_order_value': avg_order_value,
-                'conversion_rate': conversion_rate
+                'conversion_rate': conversion_rate,
             },
+            # Flat attributes for frontend compatibility
+            'total_views': total_views,
+            'total_revenue': float(total_sales),
+            'total_orders': total_orders,
+            'conversion_rate': conversion_rate,
+            'net_revenue': float(total_sales),
+            'total_logistics_cost': round(actual_logistics_cost, 2),
+            'total_tax': round(total_tax, 2),
+            'total_manufacturing_cost': round(actual_mfg_cost, 2),
+            'estimated_profit': net_profit,
             'status_distribution': status_dist,
-            'top_viewed_products': top_viewed,
-            'top_sold_products': top_sold,
-            'sales_trend': {
-                'labels': sales_trend_labels,
-                'data': sales_trend_data
-            },
-            'views_trend': {
-                'labels': views_trend_labels,
-                'data': views_trend_data
-            },
-            'finance': finance_breakdown
+            'top_products': top_products,
+            'sales_trend': [
+                {'month': l, 'revenue': d}
+                for l, d in zip(sales_trend_labels, sales_trend_data)
+            ],
+            'views_trend': [
+                {'product_name': l, 'views': d}
+                for l, d in zip(views_trend_labels, views_trend_data)
+            ],
+            'calculations': calculations_breakdown,
+            'finance': finance_breakdown,
         })
 
 
@@ -191,11 +192,7 @@ class CRMCalculationView(APIView):
             return Response({'error': 'Only sellers can manage calculations.'}, status=status.HTTP_403_FORBIDDEN)
         
         calcs = CRMCalculation.objects.filter(user=user)
-        if not calcs.exists():
-            CRMCalculation.objects.create(user=user, name='Logistics Costs', value_type='PERCENTAGE', value=8.00)
-            CRMCalculation.objects.create(user=user, name='Taxes', value_type='PERCENTAGE', value=5.00)
-            CRMCalculation.objects.create(user=user, name='Manufacturing Cost', value_type='PERCENTAGE', value=55.00)
-            calcs = CRMCalculation.objects.filter(user=user)
+        # Do NOT auto-create defaults — let users define their own
 
         payload = [{'id': c.id, 'name': c.name, 'value_type': c.value_type, 'value': float(c.value)} for c in calcs]
         return Response(payload, status=status.HTTP_200_OK)
@@ -212,9 +209,6 @@ class CRMCalculationView(APIView):
         if not name or value is None:
             return Response({'error': 'Name and value are required fields.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if name.strip().lower() in ['manufacturing cost', 'logistics costs', 'logistics cost', 'transport cost', 'transport costs']:
-            return Response({'error': 'Default system calculations (Manufacturing Cost, Logistics Costs) cannot be overridden or created.'}, status=status.HTTP_400_BAD_REQUEST)
-        
         if value_type not in ['PERCENTAGE', 'USD']:
             return Response({'error': 'value_type must be PERCENTAGE or USD.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -253,9 +247,6 @@ class CRMCalculationDetailView(APIView):
             return Response({'error': 'Only sellers can edit calculations.'}, status=status.HTTP_403_FORBIDDEN)
         
         calc = get_object_or_404(CRMCalculation, id=pk, user=user)
-        if calc.name.lower() in ['manufacturing cost', 'logistics costs', 'logistics cost', 'transport cost', 'transport costs']:
-            return Response({'error': 'Default system calculations (Manufacturing Cost, Logistics Costs) cannot be updated globally.'}, status=status.HTTP_400_BAD_REQUEST)
-        
         name = request.data.get('name')
         value_type = request.data.get('value_type')
         value = request.data.get('value')
@@ -296,7 +287,5 @@ class CRMCalculationDetailView(APIView):
             return Response({'error': 'Only sellers can delete calculations.'}, status=status.HTTP_403_FORBIDDEN)
         
         calc = get_object_or_404(CRMCalculation, id=pk, user=user)
-        if calc.name.lower() in ['manufacturing cost', 'logistics costs', 'logistics cost', 'transport cost', 'transport costs']:
-            return Response({'error': 'Default system calculations (Manufacturing Cost, Logistics Costs) cannot be deleted.'}, status=status.HTTP_400_BAD_REQUEST)
         calc.delete()
         return Response({'message': 'Calculation deleted successfully.'}, status=status.HTTP_200_OK)

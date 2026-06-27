@@ -2,7 +2,7 @@ import os
 import django
 import random
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'ecom_api.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tradehub.settings')
 django.setup()
 
 from django.utils import timezone
@@ -138,7 +138,7 @@ def seed():
     OrderLocation.objects.filter(pk=loc1c.pk).update(timestamp=now - timedelta(days=22))
 
     # Shipping Order
-    o2 = Order.objects.create(buyer=buyer, seller=seller, total_price=350.00, status='SHIPPING')
+    o2 = Order.objects.create(buyer=buyer, seller=seller, total_price=350.00, status='SHIPPED')
     Order.objects.filter(pk=o2.pk).update(created_at=now - timedelta(days=3))
     OrderItem.objects.create(order=o2, product=p3, quantity=1000, price=0.35)
     loc2a = OrderLocation.objects.create(order=o2, latitude=41.3111, longitude=69.3083, description="G'ishtlar yuklab jo'natildi - Toshkent Tekstil Zavodi")

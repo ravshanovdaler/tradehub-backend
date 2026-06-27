@@ -51,10 +51,16 @@ class ProductViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """Annotate queryset with likes_count and total_orders for sorting/display."""
-        return Product.objects.all().annotate(
+        queryset = Product.objects.all().annotate(
             likes_count_ann=Count('likes', distinct=True),
             total_orders_ann=Count('orderitem__order', distinct=True, filter=~Q(orderitem__order__status__in=['PENDING', 'CANCELLED'])),
         ).order_by('-created_at')
+        
+        seller_id = self.request.query_params.get('seller')
+        if seller_id:
+            queryset = queryset.filter(seller_id=seller_id)
+            
+        return queryset
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -161,6 +167,22 @@ class ProductViewSet(viewsets.ModelViewSet):
             var_obj = ProductVariant.objects.get(id=variant_id, product=product)
             var_obj.delete()
             return Response({'message': 'Variant deleted successfully.'}, status=status.HTTP_200_OK)
+        except ProductVariant.DoesNotExist:
+            return Response({'error': 'Variant not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=True, methods=['PUT', 'PATCH'], permission_classes=[permissions.IsAuthenticated],
+            url_path=r'update_variant/(?P<variant_id>\d+)')
+    def update_variant(self, request, pk=None, variant_id=None):
+        product = self.get_object()
+        if product.seller != request.user:
+            return Response({'error': 'You do not own this product.'}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            var_obj = ProductVariant.objects.get(id=variant_id, product=product)
+            serializer = ProductVariantSerializer(var_obj, data=request.data, partial=True)
+            if serializer.is_valid():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except ProductVariant.DoesNotExist:
             return Response({'error': 'Variant not found.'}, status=status.HTTP_404_NOT_FOUND)
 

@@ -47,7 +47,7 @@ class OrderApprovalChatNotificationTestCase(APITestCase):
     def test_approve_order_sends_templated_message(self):
         url = reverse('order-update-status', kwargs={'pk': self.order.id})
         payload = {
-            'status': 'PACKAGING',
+            'status': 'PROCESSING',
             'transport_cost': 75.00
         }
         
@@ -56,7 +56,7 @@ class OrderApprovalChatNotificationTestCase(APITestCase):
 
         # Reload order
         self.order.refresh_from_db()
-        self.assertEqual(self.order.status, 'PACKAGING')
+        self.assertEqual(self.order.status, 'PROCESSING')
         self.assertEqual(float(self.order.transport_cost), 75.00)
 
         # Verify chat room was created/fetched
@@ -78,7 +78,7 @@ class OrderApprovalChatNotificationTestCase(APITestCase):
 
         url = reverse('order-update-status', kwargs={'pk': self.order.id})
         payload = {
-            'status': 'PACKAGING',
+            'status': 'PROCESSING',
             'transport_cost': 45.00
         }
         
@@ -102,7 +102,7 @@ class OrderApprovalChatNotificationTestCase(APITestCase):
 
         url = reverse('order-update-status', kwargs={'pk': self.order.id})
         payload = {
-            'status': 'PACKAGING',
+            'status': 'PROCESSING',
             'transport_cost': 100.00
         }
         

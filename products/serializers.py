@@ -113,11 +113,12 @@ class ProductSerializer(serializers.ModelSerializer):
     seller_company = serializers.SerializerMethodField()
     seller_username = serializers.CharField(source='seller.username', read_only=True)
     seller_logo = serializers.SerializerMethodField()
+    is_seller_verified = serializers.SerializerMethodField()
     # Annotated fields (from queryset annotations)
-    likes_count = serializers.SerializerMethodField()
-    total_orders = serializers.SerializerMethodField()
-    is_liked_by_user = serializers.SerializerMethodField()
-    is_saved_by_user = serializers.SerializerMethodField()
+    likes_count_ann = serializers.SerializerMethodField()
+    total_orders_ann = serializers.SerializerMethodField()
+    is_liked = serializers.SerializerMethodField()
+    is_saved = serializers.SerializerMethodField()
 
     def get_seller_company(self, obj):
         try:
@@ -125,13 +126,19 @@ class ProductSerializer(serializers.ModelSerializer):
         except Exception:
             return None
 
-    def get_likes_count(self, obj):
+    def get_is_seller_verified(self, obj):
+        try:
+            return obj.seller.seller_profile.is_verified
+        except Exception:
+            return False
+
+    def get_likes_count_ann(self, obj):
         # Use annotation if available, else count directly
         if hasattr(obj, 'likes_count_ann'):
             return obj.likes_count_ann
         return obj.likes.count()
 
-    def get_total_orders(self, obj):
+    def get_total_orders_ann(self, obj):
         if hasattr(obj, 'total_orders_ann'):
             return obj.total_orders_ann or 0
         from orders.models import OrderItem
@@ -141,13 +148,13 @@ class ProductSerializer(serializers.ModelSerializer):
             order__status__in=['PENDING', 'CANCELLED']
         ).values('order').distinct().count()
 
-    def get_is_liked_by_user(self, obj):
+    def get_is_liked(self, obj):
         request = self.context.get('request')
         if request and request.user and request.user.is_authenticated:
             return obj.likes.filter(user=request.user).exists()
         return False
 
-    def get_is_saved_by_user(self, obj):
+    def get_is_saved(self, obj):
         request = self.context.get('request')
         if request and request.user and request.user.is_authenticated:
             return obj.saved_by.filter(user=request.user).exists()
@@ -156,7 +163,9 @@ class ProductSerializer(serializers.ModelSerializer):
     def get_seller_logo(self, obj):
         try:
             logo = obj.seller.seller_profile.company_logo
-            return logo.url if logo else None
+            if logo:
+                return f"http://127.0.0.1:8000{logo.url}"
+            return None
         except Exception:
             return None
 
@@ -164,9 +173,10 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = [
             'id', 'seller', 'seller_company', 'seller_username', 'seller_logo',
+            'is_seller_verified',
             'name', 'description', 'price', 'moq', 'manufacturing_cost',
-            'views_count', 'likes_count', 'total_orders',
-            'is_liked_by_user', 'is_saved_by_user',
+            'views_count', 'likes_count_ann', 'total_orders_ann',
+            'is_liked', 'is_saved',
             'images', 'description_images', 'variants', 'reviews', 'created_at'
         ]
 
