@@ -6,15 +6,30 @@ from django.db import transaction
 from django.db.models import Count, Sum, Q
 from .models import (
     Product, ProductImage, ProductVariant, ProductReview, ProductView,
-    ProductLike, SavedProduct, ProductDescriptionImage
+    ProductLike, SavedProduct, ProductDescriptionImage, Category
 )
 from .serializers import (
     ProductSerializer, ProductImageSerializer, ProductVariantSerializer,
     ProductReviewSerializer, ProductLikeSerializer,
-    SavedProductSerializer, ProductDescriptionImageSerializer
+    SavedProductSerializer, ProductDescriptionImageSerializer, CategorySerializer
 )
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
+
+class IsAdminOrReadOnly(permissions.BasePermission):
+    """Admin users can write; everyone else can only read."""
+    def has_permission(self, request, view):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        return request.user and request.user.is_authenticated and request.user.is_staff
+
+
+class CategoryViewSet(viewsets.ModelViewSet):
+    """Categories: read-only for all, write for admin only."""
+    queryset = Category.objects.all().order_by('name')
+    serializer_class = CategorySerializer
+    permission_classes = [IsAdminOrReadOnly]
+    lookup_field = 'slug'
 
 
 class IsSellerAndVerified(permissions.BasePermission):
@@ -59,7 +74,11 @@ class ProductViewSet(viewsets.ModelViewSet):
         seller_id = self.request.query_params.get('seller')
         if seller_id:
             queryset = queryset.filter(seller_id=seller_id)
-            
+
+        category_slug = self.request.query_params.get('category')
+        if category_slug:
+            queryset = queryset.filter(category__slug=category_slug)
+
         return queryset
 
     def get_serializer_context(self):

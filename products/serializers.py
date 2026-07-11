@@ -1,5 +1,16 @@
 from rest_framework import serializers
-from .models import Product, ProductImage, ProductVariant, ProductReview, ProductLike, SavedProduct, ProductDescriptionImage
+from .models import Product, ProductImage, ProductVariant, ProductReview, ProductLike, SavedProduct, ProductDescriptionImage, Category
+
+
+class CategorySerializer(serializers.ModelSerializer):
+    product_count = serializers.SerializerMethodField()
+
+    def get_product_count(self, obj):
+        return obj.products.count()
+
+    class Meta:
+        model = Category
+        fields = ['id', 'name', 'slug', 'icon', 'description', 'product_count']
 
 
 class ProductImageSerializer(serializers.ModelSerializer):
@@ -68,6 +79,10 @@ class ProductSerializer(serializers.ModelSerializer):
     total_orders_ann = serializers.SerializerMethodField()
     is_liked = serializers.SerializerMethodField()
     is_saved = serializers.SerializerMethodField()
+    # Category fields
+    category_name = serializers.CharField(source='category.name', read_only=True, allow_null=True)
+    category_slug = serializers.CharField(source='category.slug', read_only=True, allow_null=True)
+    category_icon = serializers.CharField(source='category.icon', read_only=True, allow_null=True)
 
     def get_reviews(self, obj):
         # Fetch only top-level reviews (parent=None)
@@ -128,6 +143,7 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'seller', 'seller_company', 'seller_username', 'seller_logo',
             'is_seller_verified',
+            'category', 'category_name', 'category_slug', 'category_icon',
             'name', 'description', 'price', 'moq', 'manufacturing_cost',
             'views_count', 'likes_count_ann', 'total_orders_ann',
             'is_liked', 'is_saved',

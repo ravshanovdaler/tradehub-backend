@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (
-    Product, ProductImage, ProductVariant, ProductReview, ProductView,
+    Category, Product, ProductImage, ProductVariant, ProductReview, ProductView,
     ProductLike, SavedProduct, ProductDescriptionImage
 )
 
@@ -16,9 +16,21 @@ class ProductVariantInline(admin.TabularInline):
     model = ProductVariant
     extra = 1
 
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ('icon', 'name', 'slug', 'product_count', 'created_at')
+    list_display_links = ('name',)
+    search_fields = ('name', 'description')
+    prepopulated_fields = {'slug': ('name',)}
+    readonly_fields = ('created_at',)
+
+    def product_count(self, obj):
+        return obj.products.count()
+    product_count.short_description = 'Products'
+
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('name', 'seller', 'price', 'moq', 'views_count', 'created_at')
-    list_filter = ('seller', 'created_at')
+    list_display = ('name', 'seller', 'category', 'price', 'moq', 'views_count', 'created_at')
+    list_filter = ('category', 'seller', 'created_at')
     search_fields = ('name', 'description', 'seller__username')
     inlines = [ProductImageInline, ProductDescriptionImageInline, ProductVariantInline]
 
@@ -50,4 +62,3 @@ admin.site.register(ProductView, ProductViewAdmin)
 admin.site.register(ProductLike, ProductLikeAdmin)
 admin.site.register(SavedProduct, SavedProductAdmin)
 admin.site.register(ProductDescriptionImage)
-
