@@ -86,22 +86,14 @@ class RegisterSerializer(serializers.ModelSerializer):
     # Seller-specific fields
     company_name = serializers.CharField(required=False, allow_blank=True)
     business_address = serializers.CharField(required=False, allow_blank=True)
-    address_latitude = serializers.DecimalField(
-        max_digits=9, decimal_places=6, required=False, allow_null=True
-    )
-    address_longitude = serializers.DecimalField(
-        max_digits=9, decimal_places=6, required=False, allow_null=True
-    )
+    address_latitude = serializers.FloatField(required=False, allow_null=True)
+    address_longitude = serializers.FloatField(required=False, allow_null=True)
     registration_number = serializers.CharField(required=False, allow_blank=True)
 
     # Buyer-specific fields
     delivery_address = serializers.CharField(required=False, allow_blank=True)
-    delivery_latitude = serializers.DecimalField(
-        max_digits=9, decimal_places=6, required=False, allow_null=True
-    )
-    delivery_longitude = serializers.DecimalField(
-        max_digits=9, decimal_places=6, required=False, allow_null=True
-    )
+    delivery_latitude = serializers.FloatField(required=False, allow_null=True)
+    delivery_longitude = serializers.FloatField(required=False, allow_null=True)
 
     class Meta:
         model = User
@@ -133,6 +125,11 @@ class RegisterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {'agreed_to_privacy_policy': 'You must agree to the Privacy Policy and Terms of Service to register.'}
             )
+        # Round coordinates to 6dp so the model DecimalField never rejects them
+        for coord_field in ('address_latitude', 'address_longitude', 'delivery_latitude', 'delivery_longitude'):
+            val = data.get(coord_field)
+            if val is not None:
+                data[coord_field] = round(float(val), 6)
         return data
 
     def create(self, validated_data):

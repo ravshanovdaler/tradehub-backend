@@ -62,6 +62,8 @@ class SellerProfile(models.Model):
     address_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     registration_number = models.CharField(max_length=100)
     doc_file = models.FileField(upload_to='manufacturer_docs/', blank=True, null=True)
+    business_doc = models.FileField(upload_to='business_docs/', blank=True, null=True)   # from registration
+    passport_image = models.FileField(upload_to='seller_passports/', blank=True, null=True)  # ID doc
     company_logo = models.ImageField(upload_to='company_logos/', blank=True, null=True)
     is_verified = models.BooleanField(default=False)
     verification_notes = models.TextField(blank=True, null=True)
@@ -101,3 +103,27 @@ class BuyerProfile(models.Model):
 
     def __str__(self):
         return f"BuyerProfile({self.user.username})"
+
+
+class KYCSelfie(models.Model):
+    """Stores the 5 liveness-check selfies captured during registration."""
+
+    STATUS_CHOICES = [
+        ('pending',  'Pending Review'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    ]
+
+    user           = models.OneToOneField(User, on_delete=models.CASCADE, related_name='kyc_selfie')
+    selfie_center  = models.ImageField(upload_to='kyc_selfies/', blank=True, null=True)
+    selfie_left    = models.ImageField(upload_to='kyc_selfies/', blank=True, null=True)
+    selfie_right   = models.ImageField(upload_to='kyc_selfies/', blank=True, null=True)
+    selfie_up      = models.ImageField(upload_to='kyc_selfies/', blank=True, null=True)
+    selfie_down    = models.ImageField(upload_to='kyc_selfies/', blank=True, null=True)
+    status         = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    admin_notes    = models.TextField(blank=True, null=True)
+    submitted_at   = models.DateTimeField(auto_now_add=True)
+    reviewed_at    = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"KYC({self.user.username}) — {self.status}"

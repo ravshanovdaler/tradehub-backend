@@ -12,7 +12,7 @@ from .serializers import (
     PasswordChangeSerializer, PasswordResetRequestSerializer, PasswordResetConfirmSerializer,
     SupportMessageSerializer
 )
-from .models import SellerProfile, BuyerProfile, generate_otp, PendingUser
+from .models import SellerProfile, BuyerProfile, generate_otp, PendingUser, KYCSelfie
 
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
@@ -24,15 +24,31 @@ class RegisterView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request, *args, **kwargs):
+        # ── Debug: print exactly what was received ──
+        import json as _json
+        print("\n[REGISTER] Incoming data:")
+        try:
+            print(_json.dumps(dict(request.data), indent=2, default=str))
+        except Exception:
+            print(request.data)
+
         serializer = RegisterSerializer(data=request.data)
         if not serializer.is_valid():
+            print("[REGISTER] Serializer errors:", serializer.errors)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
         data = serializer.validated_data
         email = data['email']
         
         if User.objects.filter(email=email).exists():
+            print(f"[REGISTER] Email already exists: {email}")
             return Response({'email': ['A user with this email already exists.']}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Also check username
+        username = data.get('username', '')
+        if User.objects.filter(username=username).exists():
+            print(f"[REGISTER] Username already exists: {username}")
+            return Response({'username': ['A user with this username already exists.']}, status=status.HTTP_400_BAD_REQUEST)
             
         from decimal import Decimal
         data_to_store = dict(data)
@@ -66,6 +82,7 @@ class RegisterView(APIView):
         if settings.DEBUG:
             res_data['otp'] = otp
             
+        print(f"[REGISTER] Success for {email}, OTP={otp}")
         return Response(res_data, status=status.HTTP_200_OK)
 
 
@@ -329,29 +346,76 @@ class SellerDocumentUploadView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class BuyerPassportUploadView(APIView):
-    """Upload buyer passport document."""
+class KYCUploadView(APIView):
+    """
+    Unified KYC upload endpoint — POST /accounts/upload-passport/
+
+    Accepted multipart fields:
+      passport       — passport / government-issued ID (all users)
+      business_doc   — business license / company docs  (sellers only, optional)
+      selfie_center  — face-scan selfie, looking straight  }
+      selfie_left    — face-scan selfie, turned left       }  all optional
+      selfie_right   — face-scan selfie, turned right      }  (user may have skipped)
+      selfie_up      — face-scan selfie, tilted up         }
+      selfie_down    — face-scan selfie, tilted down       }
+    """
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
+    SELFIE_FIELDS = ['selfie_center', 'selfie_left', 'selfie_right', 'selfie_up', 'selfie_down']
+
     def post(self, request, *args, **kwargs):
         user = request.user
-        if not user.is_buyer:
+        saved = []
+
+        # ── 1. Passport / ID ──────────────────────────────────────────────
+        passport_file = request.FILES.get('passport')
+        if passport_file:
+            if user.is_buyer:
+                profile, _ = BuyerProfile.objects.get_or_create(user=user)
+                profile.passport_image = passport_file
+                profile.save(update_fields=['passport_image'])
+                saved.append('passport (buyer)')
+            elif user.is_seller:
+                profile, _ = SellerProfile.objects.get_or_create(
+                    user=user,
+                    defaults={'company_name': '', 'business_address': '', 'registration_number': ''}
+                )
+                profile.passport_image = passport_file
+                profile.save(update_fields=['passport_image'])
+                saved.append('passport (seller)')
+
+        # ── 2. Business document (sellers only) ───────────────────────────
+        business_doc = request.FILES.get('business_doc')
+        if business_doc and user.is_seller:
+            profile, _ = SellerProfile.objects.get_or_create(
+                user=user,
+                defaults={'company_name': '', 'business_address': '', 'registration_number': ''}
+            )
+            profile.business_doc = business_doc
+            profile.save(update_fields=['business_doc'])
+            saved.append('business_doc')
+
+        # ── 3. Face-scan selfies ──────────────────────────────────────────
+        selfie_data = {f: request.FILES.get(f) for f in self.SELFIE_FIELDS if request.FILES.get(f)}
+        if selfie_data:
+            kyc, _ = KYCSelfie.objects.get_or_create(user=user)
+            for field, file_obj in selfie_data.items():
+                setattr(kyc, field, file_obj)
+            kyc.status = 'pending'
+            kyc.save()
+            saved.append(f'selfies ({len(selfie_data)}/5)')
+
+        if not saved:
             return Response(
-                {'error': 'Only buyers can upload passport documents.'},
+                {'error': 'No valid files provided. Send at least one of: passport, business_doc, selfie_center/left/right/up/down.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        try:
-            profile = user.buyer_profile
-        except BuyerProfile.DoesNotExist:
-            profile = BuyerProfile.objects.create(user=user)
-
-        serializer = BuyerProfileSerializer(profile, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            'message': 'Files uploaded successfully. Pending admin review.',
+            'uploaded': saved,
+        }, status=status.HTTP_200_OK)
 
 
 class PasswordChangeView(APIView):

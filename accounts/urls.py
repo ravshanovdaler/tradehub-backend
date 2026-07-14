@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import (
     RegisterView, LoginView, UserProfileView, CompanyLogoUploadView,
-    SellerDocumentUploadView, BuyerPassportUploadView,
+    SellerDocumentUploadView, KYCUploadView,
     VerifyEmailView, ResendOTPView,
     PasswordChangeView, PasswordResetRequestView, PasswordResetConfirmView,
     DeleteAccountView, SupportMessageView,
@@ -16,7 +16,7 @@ urlpatterns = [
     path('profile/', UserProfileView.as_view(), name='profile'),
     path('profile/upload-logo/', CompanyLogoUploadView.as_view(), name='upload_logo'),
     path('upload-doc/', SellerDocumentUploadView.as_view(), name='upload_doc'),
-    path('upload-passport/', BuyerPassportUploadView.as_view(), name='upload_passport'),
+    path('upload-passport/', KYCUploadView.as_view(), name='upload_passport'),
     path('password-change/', PasswordChangeView.as_view(), name='password_change'),
     path('password-reset-request/', PasswordResetRequestView.as_view(), name='password_reset_request'),
     path('password-reset-confirm/', PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
