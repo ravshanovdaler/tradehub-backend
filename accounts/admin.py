@@ -87,15 +87,13 @@ class KYCSelfieAdmin(admin.ModelAdmin):
     readonly_fields = (
         'user', 'submitted_at', 'reviewed_at',
         'selfie_center_preview', 'selfie_left_preview',
-        'selfie_right_preview', 'selfie_up_preview', 'selfie_down_preview',
     )
     fieldsets = (
         ('User', {'fields': ('user', 'submitted_at', 'reviewed_at')}),
         ('Admin Review', {'fields': ('status', 'admin_notes')}),
-        ('Face Scan Selfies', {
+        ('Face Scan Selfies (2 poses)', {
             'fields': (
                 'selfie_center_preview', 'selfie_left_preview',
-                'selfie_right_preview', 'selfie_up_preview', 'selfie_down_preview',
             )
         }),
     )
@@ -103,11 +101,10 @@ class KYCSelfieAdmin(admin.ModelAdmin):
 
     def selfie_count(self, obj):
         count = sum([
-            bool(obj.selfie_center), bool(obj.selfie_left), bool(obj.selfie_right),
-            bool(obj.selfie_up), bool(obj.selfie_down),
+            bool(obj.selfie_center), bool(obj.selfie_left),
         ])
-        color = '#10B981' if count == 5 else '#F59E0B' if count > 0 else '#EF4444'
-        return format_html('<b style="color:{}">{}/5 poses</b>', color, count)
+        color = '#10B981' if count == 2 else '#F59E0B' if count > 0 else '#EF4444'
+        return format_html('<b style="color:{}">{}/ 2 poses</b>', color, count)
     selfie_count.short_description = 'Selfies'
 
     def _selfie_preview(self, field_obj, label):
