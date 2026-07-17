@@ -171,14 +171,14 @@ class OrderSerializer(serializers.ModelSerializer):
             template = "Hello! I have placed an order (Order #{order_id}) for {quantity} unit(s) of {product_name}. Total price: ${total_price}. Please confirm my order."
 
         product_names_list = []
-        for p, _, _, selected_info in order_items_to_create:
+        for p, _, _, _, selected_info in order_items_to_create:
             if p:
                 name_str = p.name
                 if selected_info:
                     name_str += f" ({selected_info})"
                 product_names_list.append(name_str)
         product_names = ", ".join(product_names_list)
-        total_quantity = sum([qty for _, qty, _, _ in order_items_to_create])
+        total_quantity = sum([qty for _, qty, _, _, _ in order_items_to_create])
 
         message_body = template.replace("{order_id}", str(order.id))\
                                .replace("{product_name}", product_names)\
