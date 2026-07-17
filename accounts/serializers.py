@@ -45,38 +45,9 @@ class UserSerializer(serializers.ModelSerializer):
         seller_profile_data = validated_data.pop('seller_profile', None)
         buyer_profile_data = validated_data.pop('buyer_profile', None)
 
-        old_currency = instance.currency
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
-
-        # Cascade user currency change to all their products with proper price/cost conversions
-        if instance.is_seller and instance.currency != old_currency:
-            from products.models import Product
-            from accounts.utils import get_usd_to_uzs_rate
-            rate = get_usd_to_uzs_rate()
-
-            products = Product.objects.filter(seller=instance)
-            for p in products:
-                # Convert base values
-                if old_currency == 'USD' and instance.currency == 'UZS':
-                    p.price = float(p.price) * rate
-                    p.manufacturing_cost = float(p.manufacturing_cost) * rate
-                elif old_currency == 'UZS' and instance.currency == 'USD':
-                    p.price = float(p.price) / rate
-                    p.manufacturing_cost = float(p.manufacturing_cost) / rate
-                p.currency = instance.currency
-                p.save()
-
-                # Convert variant values
-                for var in p.variants.all():
-                    if old_currency == 'USD' and instance.currency == 'UZS':
-                        var.additional_price = float(var.additional_price) * rate
-                        var.additional_manufacturing_cost = float(var.additional_manufacturing_cost) * rate
-                    elif old_currency == 'UZS' and instance.currency == 'USD':
-                        var.additional_price = float(var.additional_price) / rate
-                        var.additional_manufacturing_cost = float(var.additional_manufacturing_cost) / rate
-                    var.save()
 
         if instance.is_seller and seller_profile_data:
             profile, _ = SellerProfile.objects.get_or_create(user=instance)
