@@ -37,6 +37,8 @@ class ProductVariantSerializer(serializers.ModelSerializer):
         target_currency = 'UZS'
         if request and request.user and request.user.is_authenticated:
             target_currency = getattr(request.user, 'currency', 'UZS')
+        else:
+            target_currency = getattr(instance.product, 'currency', 'UZS')
         
         product_currency = getattr(instance.product, 'currency', 'UZS')
         if 'additional_price' in ret and ret['additional_price'] is not None:
