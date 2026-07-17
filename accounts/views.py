@@ -228,6 +228,7 @@ def _build_user_payload(user):
         'is_seller': user.is_seller,
         'is_buyer': user.is_buyer,
         'email_verified': user.email_verified,
+        'currency': user.currency,
         'company_name': company_name,
         'is_verified': is_verified,
         'delivery_address': delivery_address,

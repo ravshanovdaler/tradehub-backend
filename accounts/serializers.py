@@ -45,9 +45,15 @@ class UserSerializer(serializers.ModelSerializer):
         seller_profile_data = validated_data.pop('seller_profile', None)
         buyer_profile_data = validated_data.pop('buyer_profile', None)
 
+        old_currency = instance.currency
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
+
+        # Cascade user currency change to all their products
+        if instance.is_seller and instance.currency != old_currency:
+            from products.models import Product
+            Product.objects.filter(seller=instance).update(currency=instance.currency)
 
         if instance.is_seller and seller_profile_data:
             profile, _ = SellerProfile.objects.get_or_create(user=instance)
