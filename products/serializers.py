@@ -198,7 +198,7 @@ class ProductSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         request = self.context.get('request')
         if request and request.user and request.user.is_authenticated:
-            instance.currency = getattr(request.user, 'currency', 'UZS')
+            validated_data['currency'] = getattr(request.user, 'currency', 'UZS')
         return super().update(instance, validated_data)
 
 
