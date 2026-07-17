@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404
 from orders.models import Order, OrderItem
 from products.models import Product, ProductView
 from .models import CRMCalculation
+from accounts.utils import convert_currency
 
 class SellerCRMStatsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -16,17 +17,22 @@ class SellerCRMStatsView(APIView):
         if not user.is_seller:
             return Response({'error': 'Only sellers have access to the CRM dashboard.'}, status=status.HTTP_403_FORBIDDEN)
 
+        seller_currency = getattr(user, 'currency', 'UZS')
+
         # 1. Product views aggregate
         products = Product.objects.filter(seller=user)
         total_views = products.aggregate(total=Sum('views_count'))['total'] or 0
 
         # 2. Sales / Order metrics (excluding PENDING and CANCELLED)
         orders = Order.objects.filter(seller=user).exclude(status__in=['PENDING', 'CANCELLED'])
-        total_sales = orders.aggregate(total=Sum('total_price'))['total'] or 0
         total_orders = orders.count()
-        
-        avg_order_value = round(float(total_sales) / total_orders, 2) if total_orders > 0 else 0
-        conversion_rate = round((total_orders / total_views) * 100, 2) if total_views > 0 else 0
+
+        total_sales = 0.0
+        for order in orders:
+            total_sales += convert_currency(float(order.total_price), order.currency, seller_currency)
+
+        avg_order_value = round(total_sales / total_orders, 2) if total_orders > 0 else 0.0
+        conversion_rate = round((total_orders / total_views) * 100, 2) if total_views > 0 else 0.0
 
         # Status distribution
         status_dist = list(
@@ -35,37 +41,54 @@ class SellerCRMStatsView(APIView):
             .annotate(count=Count('id'))
         )
 
-        # Top Viewed Products
-        top_viewed = list(
-            products.order_by('-views_count')[:5]
-            .values('id', 'name', 'views_count', 'price')
-        )
+        # Top Viewed Products (converted to seller currency)
+        top_viewed = []
+        for p in products.order_by('-views_count')[:5]:
+            top_viewed.append({
+                'id': p.id,
+                'name': p.name,
+                'views_count': p.views_count,
+                'price': convert_currency(float(p.price), p.currency, seller_currency)
+            })
 
-        # Top Sold Products (aggregate OrderItem)
-        top_sold = list(
-            OrderItem.objects.filter(order__seller=user)
-            .exclude(order__status__in=['PENDING', 'CANCELLED'])
-            .values('product__id', 'product__name')
-            .annotate(units_sold=Sum('quantity'), sales_revenue=Sum(F('quantity') * F('price')))
-            .order_by('-units_sold')[:5]
-        )
+        # Top Sold Products (aggregate OrderItem, convert to seller currency)
+        items = OrderItem.objects.filter(order__seller=user).exclude(order__status__in=['PENDING', 'CANCELLED'])
+        sold_map = {}
+        for item in items:
+            prod_id = item.product.id if item.product else None
+            prod_name = item.product.name if item.product else 'Deleted Product'
+            if not prod_id:
+                continue
+            revenue_converted = convert_currency(float(item.price * item.quantity), item.order.currency, seller_currency)
+            if prod_id not in sold_map:
+                sold_map[prod_id] = {
+                    'product__id': prod_id,
+                    'product__name': prod_name,
+                    'units_sold': 0,
+                    'sales_revenue': 0.0
+                }
+            sold_map[prod_id]['units_sold'] += item.quantity
+            sold_map[prod_id]['sales_revenue'] += revenue_converted
+        top_sold = sorted(sold_map.values(), key=lambda x: x['units_sold'], reverse=True)[:5]
 
-        # Monthly Sales Trend (last 6 months)
-        monthly_sales = list(
-            orders.annotate(month=TruncMonth('created_at'))
-            .values('month')
-            .annotate(revenue=Sum('total_price'), order_count=Count('id'))
-            .order_by('month')
-        )
+        # Monthly Sales Trend (last 6 months, converted to seller currency)
+        monthly_map = {}
+        for order in orders:
+            month = order.created_at.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            revenue_converted = convert_currency(float(order.total_price), order.currency, seller_currency)
+            if month not in monthly_map:
+                monthly_map[month] = {'month': month, 'revenue': 0.0, 'order_count': 0}
+            monthly_map[month]['revenue'] += revenue_converted
+            monthly_map[month]['order_count'] += 1
+        monthly_sales = sorted(monthly_map.values(), key=lambda x: x['month'])
         
         # Format monthly sales for chart
         sales_trend_labels = []
         sales_trend_data = []
         for entry in monthly_sales:
-            if entry['month']:
-                month_str = entry['month'].strftime('%b %Y')
-                sales_trend_labels.append(month_str)
-                sales_trend_data.append(float(entry['revenue']))
+            month_str = entry['month'].strftime('%b %Y')
+            sales_trend_labels.append(month_str)
+            sales_trend_data.append(entry['revenue'])
 
         # If data is empty, insert default labels
         if not sales_trend_labels:
@@ -91,20 +114,32 @@ class SellerCRMStatsView(APIView):
             views_trend_labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
             views_trend_data = [0, 0, 0, 0, 0, 0]
 
-        # Financial Breakdown - Deduct actual manufacturing & transport costs as baseline, then apply custom user calculations
+        # Financial Breakdown
         calcs = CRMCalculation.objects.filter(user=user)
         order_items = OrderItem.objects.filter(order__in=orders)
 
-        actual_mfg_cost = sum(float(item.product.manufacturing_cost or 0) * item.quantity for item in order_items if item.product)
-        actual_logistics_cost = sum(float(o.transport_cost or 0) for o in orders)
+        actual_mfg_cost = 0.0
+        for item in order_items:
+            if item.product:
+                mfg_converted = convert_currency(float(item.product.manufacturing_cost or 0), item.product.currency, seller_currency)
+                actual_mfg_cost += mfg_converted * item.quantity
 
-        total_costs = float(actual_mfg_cost + actual_logistics_cost)
+        actual_logistics_cost = 0.0
+        for o in orders:
+            log_converted = convert_currency(float(o.transport_cost or 0), o.currency, seller_currency)
+            actual_logistics_cost += log_converted
+
+        total_costs = actual_mfg_cost + actual_logistics_cost
         total_tax = 0.0
 
         calculations_breakdown = []
         for c in calcs:
             if c.value_type == 'PERCENTAGE':
-                cost_val = round(float(total_sales) * (float(c.value) / 100.0), 2)
+                cost_val = round(total_sales * (float(c.value) / 100.0), 2)
+            elif c.value_type == 'USD':
+                cost_val = convert_currency(float(c.value), 'USD', seller_currency)
+            elif c.value_type == 'UZS':
+                cost_val = convert_currency(float(c.value), 'UZS', seller_currency)
             else:
                 cost_val = float(c.value)
             
@@ -120,32 +155,30 @@ class SellerCRMStatsView(APIView):
                 'cost': cost_val
             })
 
-        net_profit = round(float(total_sales) - total_costs, 2)
+        net_profit = round(total_sales - total_costs, 2)
 
-        # Top Products: combine views and sold data
+        # Top Products: combine views and sold data (converted)
         top_products = []
         for p in products.order_by('-views_count')[:10]:
-            revenue = float(OrderItem.objects.filter(
-                order__seller=user, product=p
-            ).exclude(order__status__in=['PENDING', 'CANCELLED']).aggregate(
-                r=Sum(F('quantity') * F('price'))
-            )['r'] or 0)
+            p_items = OrderItem.objects.filter(order__seller=user, product=p).exclude(order__status__in=['PENDING', 'CANCELLED'])
+            revenue = 0.0
+            for item in p_items:
+                revenue += convert_currency(float(item.price * item.quantity), item.order.currency, seller_currency)
+
             top_products.append({
                 'id': p.id,
                 'name': p.name,
-                'price': float(p.price),
+                'price': convert_currency(float(p.price), p.currency, seller_currency),
                 'views_count': p.views_count,
-                'total_orders_ann': OrderItem.objects.filter(
-                    order__seller=user, product=p
-                ).exclude(order__status__in=['PENDING', 'CANCELLED']).count(),
+                'total_orders_ann': p_items.values('order').distinct().count(),
                 'revenue': revenue,
             })
 
         finance_breakdown = {
-            'revenue': float(total_sales),
+            'revenue': total_sales,
             'tax': round(total_tax, 2),
-            'logistics': float(actual_logistics_cost),
-            'manufacturing': float(actual_mfg_cost),
+            'logistics': actual_logistics_cost,
+            'manufacturing': actual_mfg_cost,
             'profit': net_profit,
             'calculations': calculations_breakdown
         }
@@ -153,17 +186,16 @@ class SellerCRMStatsView(APIView):
         return Response({
             'overview': {
                 'total_views': total_views,
-                'total_sales': float(total_sales),
+                'total_sales': total_sales,
                 'total_orders': total_orders,
                 'avg_order_value': avg_order_value,
                 'conversion_rate': conversion_rate,
             },
-            # Flat attributes for frontend compatibility
             'total_views': total_views,
-            'total_revenue': float(total_sales),
+            'total_revenue': total_sales,
             'total_orders': total_orders,
             'conversion_rate': conversion_rate,
-            'net_revenue': float(total_sales),
+            'net_revenue': total_sales,
             'total_logistics_cost': round(actual_logistics_cost, 2),
             'total_tax': round(total_tax, 2),
             'total_manufacturing_cost': round(actual_mfg_cost, 2),
@@ -180,6 +212,7 @@ class SellerCRMStatsView(APIView):
             ],
             'calculations': calculations_breakdown,
             'finance': finance_breakdown,
+            'currency': seller_currency,
         })
 
 

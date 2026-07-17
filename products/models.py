@@ -27,6 +27,11 @@ class Category(models.Model):
         return f"{self.icon} {self.name}"
 
 class Product(models.Model):
+    CURRENCY_CHOICES = [
+        ('USD', 'US Dollar'),
+        ('UZS', 'Uzbekistan Som'),
+    ]
+
     seller = models.ForeignKey(User, on_delete=models.CASCADE, related_name='products')
     category = models.ForeignKey(
         Category, on_delete=models.SET_NULL, null=True, blank=True, related_name='products'
@@ -34,6 +39,7 @@ class Product(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField()
     price = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='UZS')
     moq = models.IntegerField(default=1, verbose_name="Minimum Order Quantity")
     manufacturing_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     views_count = models.IntegerField(default=0)

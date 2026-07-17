@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Order, OrderLocation
 from .serializers import OrderSerializer, OrderLocationSerializer
+from accounts.utils import convert_currency
 
 class OrderViewSet(viewsets.ModelViewSet):
     serializer_class = OrderSerializer
@@ -40,10 +41,16 @@ class OrderViewSet(viewsets.ModelViewSet):
         if transport_cost is not None:
             try:
                 from decimal import Decimal
-                tc_dec = Decimal(str(transport_cost))
-                if tc_dec < 0:
+                tc_val = float(transport_cost)
+                if tc_val < 0:
                     return Response({'error': 'Transport cost must be non-negative.'}, status=status.HTTP_400_BAD_REQUEST)
-                order.transport_cost = tc_dec
+                
+                # Convert from request user preferred currency to order base currency
+                user_currency = getattr(request.user, 'currency', 'UZS')
+                order_currency = getattr(order, 'currency', 'UZS')
+                converted_tc = convert_currency(tc_val, user_currency, order_currency)
+                
+                order.transport_cost = Decimal(str(round(converted_tc, 2)))
             except Exception:
                 return Response({'error': 'Invalid transport cost value.'}, status=status.HTTP_400_BAD_REQUEST)
 

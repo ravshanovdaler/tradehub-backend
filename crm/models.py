@@ -7,6 +7,7 @@ class CRMCalculation(models.Model):
     VALUE_TYPE_CHOICES = [
         ('PERCENTAGE', 'Percentage'),
         ('USD', 'USD'),
+        ('UZS', 'UZS'),
     ]
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='crm_calculations')
     name = models.CharField(max_length=100)

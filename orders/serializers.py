@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Order, OrderItem, OrderLocation
 from products.models import Product
+from accounts.utils import convert_currency
 
 class OrderItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
@@ -16,6 +17,18 @@ class OrderItemSerializer(serializers.ModelSerializer):
             'selected_variant_ids', 'selected_variants_info'
         ]
         read_only_fields = ['price', 'selected_variants_info']
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        request = self.context.get('request')
+        target_currency = 'UZS'
+        if request and request.user and request.user.is_authenticated:
+            target_currency = getattr(request.user, 'currency', 'UZS')
+            
+        order_currency = getattr(instance.order, 'currency', 'UZS')
+        if 'price' in ret and ret['price'] is not None:
+            ret['price'] = convert_currency(float(ret['price']), order_currency, target_currency)
+        return ret
 
 class OrderLocationSerializer(serializers.ModelSerializer):
     class Meta:
@@ -47,10 +60,26 @@ class OrderSerializer(serializers.ModelSerializer):
         model = Order
         fields = [
             'id', 'buyer', 'buyer_username', 'buyer_delivery_address', 'buyer_phone',
-            'seller', 'seller_company', 'status', 'total_price', 'transport_cost',
+            'seller', 'seller_company', 'status', 'total_price', 'transport_cost', 'currency',
             'items', 'locations', 'created_at', 'updated_at'
         ]
         read_only_fields = ['buyer', 'seller', 'buyer_username', 'buyer_delivery_address', 'buyer_phone', 'seller_company', 'total_price', 'created_at', 'updated_at']
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        request = self.context.get('request')
+        target_currency = 'UZS'
+        if request and request.user and request.user.is_authenticated:
+            target_currency = getattr(request.user, 'currency', 'UZS')
+            
+        order_currency = getattr(instance, 'currency', 'UZS')
+        if 'total_price' in ret and ret['total_price'] is not None:
+            ret['total_price'] = convert_currency(float(ret['total_price']), order_currency, target_currency)
+        if 'transport_cost' in ret and ret['transport_cost'] is not None:
+            ret['transport_cost'] = convert_currency(float(ret['transport_cost']), order_currency, target_currency)
+            
+        ret['currency'] = target_currency
+        return ret
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')
@@ -102,7 +131,7 @@ class OrderSerializer(serializers.ModelSerializer):
             total_price += unit_price * quantity
             order_items_to_create.append((product, quantity, unit_price, selected_info))
 
-        order = Order.objects.create(buyer=buyer, seller=seller, total_price=total_price, status='PENDING')
+        order = Order.objects.create(buyer=buyer, seller=seller, total_price=total_price, status='PENDING', currency=first_product.currency)
 
         for product, quantity, price, selected_info in order_items_to_create:
             OrderItem.objects.create(

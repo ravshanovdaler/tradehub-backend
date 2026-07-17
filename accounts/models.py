@@ -9,6 +9,11 @@ def generate_otp():
 
 
 class User(AbstractUser):
+    CURRENCY_CHOICES = [
+        ('USD', 'US Dollar'),
+        ('UZS', 'Uzbekistan Som'),
+    ]
+
     is_seller = models.BooleanField(default=False)
     is_buyer = models.BooleanField(default=False)
 
@@ -18,6 +23,7 @@ class User(AbstractUser):
     phone_number = models.CharField(max_length=20, blank=True, default='')
     additional_phone = models.CharField(max_length=20, blank=True, null=True)
     age = models.PositiveIntegerField(null=True, blank=True)
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='UZS')
 
     # Email verification
     email_verified = models.BooleanField(default=False)

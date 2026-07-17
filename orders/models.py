@@ -14,11 +14,17 @@ class Order(models.Model):
         ('CANCELLED', 'Cancelled'),
     ]
 
+    CURRENCY_CHOICES = [
+        ('USD', 'US Dollar'),
+        ('UZS', 'Uzbekistan Som'),
+    ]
+
     buyer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='buyer_orders')
     seller = models.ForeignKey(User, on_delete=models.CASCADE, related_name='seller_orders')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     total_price = models.DecimalField(max_digits=12, decimal_places=2)
     transport_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='UZS')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

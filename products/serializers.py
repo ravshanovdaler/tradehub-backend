@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Product, ProductImage, ProductVariant, ProductReview, ProductLike, SavedProduct, ProductDescriptionImage, Category
+from accounts.utils import convert_currency
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -29,6 +30,18 @@ class ProductVariantSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductVariant
         fields = ['id', 'attribute_name', 'attribute_value', 'additional_price']
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        request = self.context.get('request')
+        target_currency = 'UZS'
+        if request and request.user and request.user.is_authenticated:
+            target_currency = getattr(request.user, 'currency', 'UZS')
+        
+        product_currency = getattr(instance.product, 'currency', 'UZS')
+        if 'additional_price' in ret and ret['additional_price'] is not None:
+            ret['additional_price'] = convert_currency(float(ret['additional_price']), product_currency, target_currency)
+        return ret
 
 
 class ProductReviewSerializer(serializers.ModelSerializer):
@@ -133,7 +146,10 @@ class ProductSerializer(serializers.ModelSerializer):
         try:
             logo = obj.seller.seller_profile.company_logo
             if logo:
-                return f"http://127.0.0.1:8000{logo.url}"
+                request = self.context.get('request')
+                if request:
+                    return request.build_absolute_uri(logo.url)
+                return logo.url
             return None
         except Exception:
             return None
@@ -144,12 +160,44 @@ class ProductSerializer(serializers.ModelSerializer):
             'id', 'seller', 'seller_company', 'seller_username', 'seller_logo',
             'is_seller_verified',
             'category', 'category_name', 'category_slug', 'category_icon',
-            'name', 'description', 'price', 'moq', 'manufacturing_cost',
+            'name', 'description', 'price', 'currency', 'moq', 'manufacturing_cost',
             'views_count', 'likes_count_ann', 'total_orders_ann',
             'is_liked', 'is_saved',
             'images', 'description_images', 'variants', 'reviews', 'created_at'
         ]
         read_only_fields = ['seller', 'views_count', 'created_at']
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        request = self.context.get('request')
+        target_currency = 'UZS'
+        if request and request.user and request.user.is_authenticated:
+            target_currency = getattr(request.user, 'currency', 'UZS')
+        else:
+            # If guest, default to the product's original currency
+            target_currency = getattr(instance, 'currency', 'UZS')
+        
+        product_currency = getattr(instance, 'currency', 'UZS')
+        
+        if 'price' in ret and ret['price'] is not None:
+            ret['price'] = convert_currency(float(ret['price']), product_currency, target_currency)
+        if 'manufacturing_cost' in ret and ret['manufacturing_cost'] is not None:
+            ret['manufacturing_cost'] = convert_currency(float(ret['manufacturing_cost']), product_currency, target_currency)
+            
+        ret['currency'] = target_currency
+        return ret
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        if request and request.user and request.user.is_authenticated:
+            validated_data['currency'] = getattr(request.user, 'currency', 'UZS')
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        request = self.context.get('request')
+        if request and request.user and request.user.is_authenticated:
+            instance.currency = getattr(request.user, 'currency', 'UZS')
+        return super().update(instance, validated_data)
 
 
 # ─── Saved Products ────────────────────────────────────────────────────────────

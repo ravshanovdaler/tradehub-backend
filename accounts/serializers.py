@@ -36,7 +36,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
             'phone_number', 'additional_phone', 'age',
-            'is_seller', 'is_buyer', 'email_verified',
+            'is_seller', 'is_buyer', 'email_verified', 'currency',
             'seller_profile', 'buyer_profile'
         ]
         read_only_fields = ['id', 'email_verified']
@@ -100,7 +100,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         fields = [
             'username', 'email', 'password', 'confirm_password',
             'first_name', 'last_name', 'phone_number', 'additional_phone', 'age',
-            'is_seller', 'is_buyer',
+            'is_seller', 'is_buyer', 'currency',
             'agreed_to_privacy_policy',
             # Seller
             'company_name', 'business_address', 'address_latitude', 'address_longitude',
