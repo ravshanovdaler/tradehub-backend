@@ -13,10 +13,10 @@ class OrderItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrderItem
         fields = [
-            'id', 'product', 'product_name', 'product_moq', 'quantity', 'price',
+            'id', 'product', 'product_name', 'product_moq', 'quantity', 'price', 'manufacturing_cost',
             'selected_variant_ids', 'selected_variants_info'
         ]
-        read_only_fields = ['price', 'selected_variants_info']
+        read_only_fields = ['price', 'manufacturing_cost', 'selected_variants_info']
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
@@ -28,6 +28,8 @@ class OrderItemSerializer(serializers.ModelSerializer):
         order_currency = getattr(instance.order, 'currency', 'UZS')
         if 'price' in ret and ret['price'] is not None:
             ret['price'] = convert_currency(float(ret['price']), order_currency, target_currency)
+        if 'manufacturing_cost' in ret and ret['manufacturing_cost'] is not None:
+            ret['manufacturing_cost'] = convert_currency(float(ret['manufacturing_cost']), order_currency, target_currency)
         return ret
 
 class OrderLocationSerializer(serializers.ModelSerializer):
@@ -118,6 +120,7 @@ class OrderSerializer(serializers.ModelSerializer):
             variant_ids = item_data.get('selected_variant_ids', [])
             
             unit_price = product.price
+            unit_mfg_cost = product.manufacturing_cost
             variant_desc_parts = []
             
             if variant_ids:
@@ -125,20 +128,22 @@ class OrderSerializer(serializers.ModelSerializer):
                 variants = ProductVariant.objects.filter(id__in=variant_ids, product=product)
                 for var in variants:
                     unit_price += var.additional_price
+                    unit_mfg_cost += var.additional_manufacturing_cost
                     variant_desc_parts.append(f"{var.attribute_name}: {var.attribute_value}")
                     
             selected_info = ", ".join(variant_desc_parts)
             total_price += unit_price * quantity
-            order_items_to_create.append((product, quantity, unit_price, selected_info))
+            order_items_to_create.append((product, quantity, unit_price, unit_mfg_cost, selected_info))
 
         order = Order.objects.create(buyer=buyer, seller=seller, total_price=total_price, status='PENDING', currency=first_product.currency)
 
-        for product, quantity, price, selected_info in order_items_to_create:
+        for product, quantity, price, mfg_cost, selected_info in order_items_to_create:
             OrderItem.objects.create(
                 order=order,
                 product=product,
                 quantity=quantity,
                 price=price,
+                manufacturing_cost=mfg_cost,
                 selected_variants_info=selected_info
             )
 

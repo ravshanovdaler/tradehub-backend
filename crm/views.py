@@ -120,9 +120,8 @@ class SellerCRMStatsView(APIView):
 
         actual_mfg_cost = 0.0
         for item in order_items:
-            if item.product:
-                mfg_converted = convert_currency(float(item.product.manufacturing_cost or 0), item.product.currency, seller_currency)
-                actual_mfg_cost += mfg_converted * item.quantity
+            mfg_converted = convert_currency(float(item.manufacturing_cost or 0), item.order.currency, seller_currency)
+            actual_mfg_cost += mfg_converted * item.quantity
 
         actual_logistics_cost = 0.0
         for o in orders:

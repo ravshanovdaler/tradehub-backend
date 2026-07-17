@@ -36,6 +36,7 @@ class OrderItem(models.Model):
     product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True)
     quantity = models.IntegerField(default=1)
     price = models.DecimalField(max_digits=12, decimal_places=2)  # Price locked at purchase time
+    manufacturing_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)  # Cost locked at purchase time
     selected_variants_info = models.TextField(blank=True, default='')
 
     def __str__(self):

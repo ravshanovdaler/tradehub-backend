@@ -60,6 +60,7 @@ class ProductVariant(models.Model):
     attribute_name = models.CharField(max_length=50, help_text="e.g. Size, Color")
     attribute_value = models.CharField(max_length=50, help_text="e.g. L, XL, Blue, Red")
     additional_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    additional_manufacturing_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
     def __str__(self):
         return f"{self.product.name} - {self.attribute_name}: {self.attribute_value}"

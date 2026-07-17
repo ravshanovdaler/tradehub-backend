@@ -29,7 +29,7 @@ class ProductDescriptionImageSerializer(serializers.ModelSerializer):
 class ProductVariantSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductVariant
-        fields = ['id', 'attribute_name', 'attribute_value', 'additional_price']
+        fields = ['id', 'attribute_name', 'attribute_value', 'additional_price', 'additional_manufacturing_cost']
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
@@ -41,6 +41,8 @@ class ProductVariantSerializer(serializers.ModelSerializer):
         product_currency = getattr(instance.product, 'currency', 'UZS')
         if 'additional_price' in ret and ret['additional_price'] is not None:
             ret['additional_price'] = convert_currency(float(ret['additional_price']), product_currency, target_currency)
+        if 'additional_manufacturing_cost' in ret and ret['additional_manufacturing_cost'] is not None:
+            ret['additional_manufacturing_cost'] = convert_currency(float(ret['additional_manufacturing_cost']), product_currency, target_currency)
         return ret
 
 
