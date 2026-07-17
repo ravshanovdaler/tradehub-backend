@@ -185,6 +185,7 @@ JAZZMIN_SETTINGS = {
         'accounts.sellerprofile': 'fas fa-industry',
         'accounts.buyerprofile': 'fas fa-shopping-cart',
         'accounts.unverifiedseller': 'fas fa-user-clock',
+        'accounts.report': 'fas fa-exclamation-triangle',
         'products.product': 'fas fa-box',
         'orders.order': 'fas fa-file-invoice',
         'rest_framework.authtoken': 'fas fa-key',

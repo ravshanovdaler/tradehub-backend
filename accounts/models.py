@@ -143,3 +143,28 @@ class KYCSelfie(models.Model):
 
     def __str__(self):
         return f"KYC({self.user.username}) — {self.status}"
+
+
+class Report(models.Model):
+    REPORT_TYPES = (
+        ('USER', 'User/Company'),
+        ('CHAT', 'Chat Room'),
+        ('PRODUCT', 'Product'),
+    )
+
+    reporter = models.ForeignKey(User, on_delete=models.CASCADE, related_name='submitted_reports')
+    report_type = models.CharField(max_length=10, choices=REPORT_TYPES)
+    
+    # Optional relationships depending on the type of report
+    reported_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='reports_received')
+    reported_product = models.ForeignKey('products.Product', on_delete=models.SET_NULL, null=True, blank=True, related_name='reports')
+    reported_chat = models.ForeignKey('chat.ChatRoom', on_delete=models.SET_NULL, null=True, blank=True, related_name='reports')
+    
+    reason = models.CharField(max_length=100) # e.g. Spam, Fraud, Counterfeit, Harassment, etc.
+    description = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_resolved = models.BooleanField(default=False)
+    resolution_notes = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return f"Report by {self.reporter.username} on {self.get_report_type_display()} ({self.reason})"

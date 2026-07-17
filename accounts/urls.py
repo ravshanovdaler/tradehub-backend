@@ -5,7 +5,7 @@ from .views import (
     VerifyEmailView, ResendOTPView,
     PasswordChangeView, PasswordResetRequestView, PasswordResetConfirmView,
     DeleteAccountView, SupportMessageView,
-    CompanyProfileView, CompanyLikeToggleView
+    CompanyProfileView, CompanyLikeToggleView, ReportListCreateView
 )
 
 urlpatterns = [
@@ -24,5 +24,6 @@ urlpatterns = [
     path('support/', SupportMessageView.as_view(), name='support_message'),
     path('companies/<int:seller_id>/', CompanyProfileView.as_view(), name='company_profile'),
     path('companies/<int:seller_id>/like/', CompanyLikeToggleView.as_view(), name='company_like_toggle'),
+    path('reports/', ReportListCreateView.as_view(), name='report_list_create'),
 ]
 

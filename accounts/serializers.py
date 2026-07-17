@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import SellerProfile, BuyerProfile
+from .models import SellerProfile, BuyerProfile, Report
 
 User = get_user_model()
 
@@ -201,4 +201,17 @@ class SupportMessageSerializer(serializers.Serializer):
     message = serializers.CharField(required=True)
     # Optional file attachment (image/video/document)
     media = serializers.FileField(required=False, allow_null=True)
+
+
+class ReportSerializer(serializers.ModelSerializer):
+    reporter_username = serializers.ReadOnlyField(source='reporter.username')
+
+    class Meta:
+        model = Report
+        fields = [
+            'id', 'reporter', 'reporter_username', 'report_type', 
+            'reported_user', 'reported_product', 'reported_chat', 
+            'reason', 'description', 'created_at', 'is_resolved'
+        ]
+        read_only_fields = ['id', 'reporter', 'created_at', 'is_resolved']
 

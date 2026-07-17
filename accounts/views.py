@@ -10,9 +10,9 @@ from django.utils import timezone
 from .serializers import (
     RegisterSerializer, UserSerializer, SellerProfileSerializer, BuyerProfileSerializer,
     PasswordChangeSerializer, PasswordResetRequestSerializer, PasswordResetConfirmSerializer,
-    SupportMessageSerializer
+    SupportMessageSerializer, ReportSerializer
 )
-from .models import SellerProfile, BuyerProfile, generate_otp, PendingUser, KYCSelfie
+from .models import SellerProfile, BuyerProfile, generate_otp, PendingUser, KYCSelfie, Report
 
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
@@ -645,6 +645,19 @@ class CompanyLikeToggleView(APIView):
             'liked': liked,
             'likes_count': likes_count
         }, status=status.HTTP_200_OK)
+
+
+class ReportListCreateView(generics.ListCreateAPIView):
+    serializer_class = ReportSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.is_staff:
+            return Report.objects.all().order_by('-created_at')
+        return Report.objects.filter(reporter=self.request.user).order_by('-created_at')
+
+    def perform_create(self, serializer):
+        serializer.save(reporter=self.request.user)
 
 
 

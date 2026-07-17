@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.html import format_html
 from django.utils import timezone
-from .models import SellerProfile, BuyerProfile, SellerDeletionRequest, CompanyLike, KYCSelfie, UnverifiedSeller
+from .models import SellerProfile, BuyerProfile, SellerDeletionRequest, CompanyLike, KYCSelfie, UnverifiedSeller, Report
 
 
 User = get_user_model()
@@ -183,6 +183,21 @@ class UnverifiedSellerAdmin(SellerProfileAdmin):
 
 
 admin.site.register(UnverifiedSeller, UnverifiedSellerAdmin)
+
+
+class ReportAdmin(admin.ModelAdmin):
+    list_display = ('reporter', 'report_type', 'reason', 'is_resolved', 'created_at')
+    list_filter = ('report_type', 'is_resolved', 'reason', 'created_at')
+    search_fields = ('reporter__username', 'reported_user__username', 'reported_product__name', 'reason', 'description')
+    readonly_fields = ('created_at',)
+    actions = ['mark_as_resolved']
+
+    def mark_as_resolved(self, request, queryset):
+        queryset.update(is_resolved=True)
+    mark_as_resolved.short_description = "Mark selected reports as resolved"
+
+
+admin.site.register(Report, ReportAdmin)
 
 
 
