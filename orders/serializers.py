@@ -90,9 +90,10 @@ class OrderSerializer(serializers.ModelSerializer):
         if not items_data:
             raise serializers.ValidationError("An order must have at least one product item.")
 
+        first_product = items_data[0]['product']
+
         if creator.is_buyer:
             buyer = creator
-            first_product = items_data[0]['product']
             seller = first_product.seller
         else:
             # Creator is seller. Check for buyer in request data.
