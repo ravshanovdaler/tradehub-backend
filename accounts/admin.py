@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.html import format_html
 from django.utils import timezone
-from .models import SellerProfile, BuyerProfile, SellerDeletionRequest, CompanyLike, KYCSelfie
+from .models import SellerProfile, BuyerProfile, SellerDeletionRequest, CompanyLike, KYCSelfie, UnverifiedSeller
 
 
 User = get_user_model()
@@ -175,6 +175,14 @@ admin.site.register(SellerProfile, SellerProfileAdmin)
 admin.site.register(BuyerProfile, BuyerProfileAdmin)
 admin.site.register(SellerDeletionRequest, SellerDeletionRequestAdmin)
 admin.site.register(CompanyLike)
+
+
+class UnverifiedSellerAdmin(SellerProfileAdmin):
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(is_verified=False)
+
+
+admin.site.register(UnverifiedSeller, UnverifiedSellerAdmin)
 
 
 

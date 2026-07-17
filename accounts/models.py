@@ -53,6 +53,9 @@ class SellerDeletionRequest(User):
 
 
 
+
+
+
 class SellerProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='seller_profile')
     company_name = models.CharField(max_length=255)
@@ -74,6 +77,13 @@ class SellerProfile(models.Model):
 
     def __str__(self):
         return f"{self.company_name} - Verified: {self.is_verified}"
+
+
+class UnverifiedSeller(SellerProfile):
+    class Meta:
+        proxy = True
+        verbose_name = "Unverified Seller"
+        verbose_name_plural = "Unverified Sellers"
 
 
 class CompanyLike(models.Model):
