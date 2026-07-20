@@ -14,6 +14,12 @@ class User(AbstractUser):
         ('UZS', 'Uzbekistan Som'),
     ]
 
+    LANGUAGE_CHOICES = [
+        ('en', 'English'),
+        ('uz', 'Uzbek'),
+        ('ru', 'Russian'),
+    ]
+
     is_seller = models.BooleanField(default=False)
     is_buyer = models.BooleanField(default=False)
 
@@ -24,6 +30,7 @@ class User(AbstractUser):
     additional_phone = models.CharField(max_length=20, blank=True, null=True)
     age = models.PositiveIntegerField(null=True, blank=True)
     currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='UZS')
+    language = models.CharField(max_length=5, choices=LANGUAGE_CHOICES, default='en')
 
     # Email verification
     email_verified = models.BooleanField(default=False)
