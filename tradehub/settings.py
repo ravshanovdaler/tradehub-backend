@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'rest_framework',
     'rest_framework.authtoken',
+    'drf_spectacular',
     'accounts',
     'products',
     'orders',
@@ -150,6 +151,7 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.TokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
 # Email configuration (Gmail SMTP)
@@ -231,4 +233,11 @@ JAZZMIN_UI_TWEAKS = {
         'danger': 'btn-danger',
         'success': 'btn-success',
     },
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'TradeHub API',
+    'DESCRIPTION': 'API documentation for TradeHub Wholesale Marketplace',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
 }
