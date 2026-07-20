@@ -11,7 +11,10 @@ class CategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Category
-        fields = ['id', 'name', 'slug', 'icon', 'description', 'product_count']
+        fields = [
+            'id', 'name', 'name_en', 'name_uz', 'name_ru',
+            'slug', 'icon', 'description', 'product_count'
+        ]
 
 
 class ProductImageSerializer(serializers.ModelSerializer):
@@ -96,8 +99,11 @@ class ProductSerializer(serializers.ModelSerializer):
     total_orders_ann = serializers.SerializerMethodField()
     is_liked = serializers.SerializerMethodField()
     is_saved = serializers.SerializerMethodField()
-    # Category fields
-    category_name = serializers.CharField(source='category.name', read_only=True, allow_null=True)
+    # Category fields — all three locale variants
+    category_name = serializers.CharField(source='category.name_en', read_only=True, allow_null=True)
+    category_name_en = serializers.CharField(source='category.name_en', read_only=True, allow_null=True)
+    category_name_uz = serializers.CharField(source='category.name_uz', read_only=True, allow_null=True)
+    category_name_ru = serializers.CharField(source='category.name_ru', read_only=True, allow_null=True)
     category_slug = serializers.CharField(source='category.slug', read_only=True, allow_null=True)
     category_icon = serializers.CharField(source='category.icon', read_only=True, allow_null=True)
 
@@ -163,7 +169,9 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'seller', 'seller_company', 'seller_username', 'seller_logo',
             'is_seller_verified',
-            'category', 'category_name', 'category_slug', 'category_icon',
+            'category', 'category_name',
+            'category_name_en', 'category_name_uz', 'category_name_ru',
+            'category_slug', 'category_icon',
             'name', 'description', 'price', 'currency', 'moq', 'manufacturing_cost',
             'views_count', 'likes_count_ann', 'total_orders_ann',
             'is_liked', 'is_saved',

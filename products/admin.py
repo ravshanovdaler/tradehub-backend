@@ -18,15 +18,31 @@ class ProductVariantInline(admin.TabularInline):
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ('icon', 'name', 'slug', 'product_count', 'created_at')
-    list_display_links = ('name',)
-    search_fields = ('name', 'description')
-    prepopulated_fields = {'slug': ('name',)}
-    readonly_fields = ('created_at',)
+    list_display = ('icon', 'name_en', 'name_uz', 'name_ru', 'slug', 'product_count', 'created_at')
+    list_display_links = ('name_en',)
+    list_editable = ('name_uz', 'name_ru')
+    search_fields = ('name_en', 'name_uz', 'name_ru', 'description')
+    prepopulated_fields = {'slug': ('name_en',)}
+    readonly_fields = ('created_at', 'name')
+    fieldsets = (
+        ('Names', {
+            'fields': ('name_en', 'name_uz', 'name_ru'),
+            'description': 'Enter the category name in each supported language. English is required.',
+        }),
+        ('Settings', {
+            'fields': ('slug', 'icon', 'description'),
+        }),
+        ('Meta', {
+            'fields': ('name', 'created_at'),
+            'classes': ('collapse',),
+            'description': 'Legacy field (auto-synced from English name)',
+        }),
+    )
 
     def product_count(self, obj):
         return obj.products.count()
     product_count.short_description = 'Products'
+
 
 class ProductAdmin(admin.ModelAdmin):
     list_display = ('name', 'seller', 'category', 'price', 'moq', 'views_count', 'created_at')

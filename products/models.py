@@ -8,10 +8,17 @@ User = get_user_model()
 # ─── Category ─────────────────────────────────────────────────────────────────
 
 class Category(models.Model):
-    name = models.CharField(max_length=100, unique=True)
+    # Legacy field kept for backward-compat — populated from name_en via migration
+    name = models.CharField(max_length=100, unique=True, default='')
     slug = models.SlugField(max_length=120, unique=True, blank=True)
     icon = models.CharField(max_length=20, blank=True, default='📦', help_text='Emoji or short icon text')
     description = models.TextField(blank=True)
+
+    # Multilingual name fields
+    name_en = models.CharField(max_length=100, blank=True, verbose_name='Name (English)')
+    name_uz = models.CharField(max_length=100, blank=True, verbose_name="Name (O'zbek)")
+    name_ru = models.CharField(max_length=100, blank=True, verbose_name='Название (Русский)')
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -19,12 +26,18 @@ class Category(models.Model):
         ordering = ['name']
 
     def save(self, *args, **kwargs):
+        # Keep name in sync with name_en (primary source)
+        if self.name_en:
+            self.name = self.name_en
+        elif not self.name_en and self.name:
+            self.name_en = self.name
         if not self.slug:
-            self.slug = slugify(self.name)
+            self.slug = slugify(self.name or self.name_en)
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.icon} {self.name}"
+        return f"{self.icon} {self.name_en or self.name}"
+
 
 class Product(models.Model):
     CURRENCY_CHOICES = [
