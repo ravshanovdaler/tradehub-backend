@@ -132,15 +132,28 @@ class SellerCRMStatsView(APIView):
         total_tax = 0.0
 
         calculations_breakdown = []
+        total_units_sold = sum(item.quantity for item in order_items)
         for c in calcs:
-            if c.value_type == 'PERCENTAGE':
-                cost_val = round(total_sales * (float(c.value) / 100.0), 2)
-            elif c.value_type == 'USD':
-                cost_val = convert_currency(float(c.value), 'USD', seller_currency)
-            elif c.value_type == 'UZS':
-                cost_val = convert_currency(float(c.value), 'UZS', seller_currency)
-            else:
-                cost_val = float(c.value)
+            basis = getattr(c, 'basis', 'PER_SALES')
+            if basis == 'PER_PRODUCT':
+                if c.value_type == 'PERCENTAGE':
+                    # per product percentage makes sense as percentage of total sales
+                    cost_val = round(total_sales * (float(c.value) / 100.0), 2)
+                elif c.value_type == 'USD':
+                    cost_val = round(convert_currency(float(c.value), 'USD', seller_currency) * total_units_sold, 2)
+                elif c.value_type == 'UZS':
+                    cost_val = round(convert_currency(float(c.value), 'UZS', seller_currency) * total_units_sold, 2)
+                else:
+                    cost_val = round(float(c.value) * total_units_sold, 2)
+            else: # PER_SALES
+                if c.value_type == 'PERCENTAGE':
+                    cost_val = round(total_sales * (float(c.value) / 100.0), 2)
+                elif c.value_type == 'USD':
+                    cost_val = round(convert_currency(float(c.value), 'USD', seller_currency) * total_orders, 2)
+                elif c.value_type == 'UZS':
+                    cost_val = round(convert_currency(float(c.value), 'UZS', seller_currency) * total_orders, 2)
+                else:
+                    cost_val = round(float(c.value) * total_orders, 2)
             
             if 'tax' in c.name.lower() or 'vat' in c.name.lower():
                 total_tax += cost_val
@@ -151,6 +164,7 @@ class SellerCRMStatsView(APIView):
                 'name': c.name,
                 'value_type': c.value_type,
                 'value': float(c.value),
+                'basis': basis,
                 'cost': cost_val
             })
 
@@ -226,7 +240,13 @@ class CRMCalculationView(APIView):
         calcs = CRMCalculation.objects.filter(user=user)
         # Do NOT auto-create defaults — let users define their own
 
-        payload = [{'id': c.id, 'name': c.name, 'value_type': c.value_type, 'value': float(c.value)} for c in calcs]
+        payload = [{
+            'id': c.id, 
+            'name': c.name, 
+            'value_type': c.value_type, 
+            'value': float(c.value),
+            'basis': getattr(c, 'basis', 'PER_SALES')
+        } for c in calcs]
         return Response(payload, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
@@ -237,12 +257,16 @@ class CRMCalculationView(APIView):
         name = request.data.get('name')
         value_type = request.data.get('value_type', 'PERCENTAGE')
         value = request.data.get('value')
+        basis = request.data.get('basis', 'PER_SALES')
 
         if not name or value is None:
             return Response({'error': 'Name and value are required fields.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if value_type not in ['PERCENTAGE', 'USD']:
-            return Response({'error': 'value_type must be PERCENTAGE or USD.'}, status=status.HTTP_400_BAD_REQUEST)
+        if value_type not in ['PERCENTAGE', 'USD', 'UZS']:
+            return Response({'error': 'value_type must be PERCENTAGE, USD, or UZS.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if basis not in ['PER_PRODUCT', 'PER_SALES']:
+            return Response({'error': 'basis must be PER_PRODUCT or PER_SALES.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             from decimal import Decimal
@@ -250,9 +274,9 @@ class CRMCalculationView(APIView):
             if value_type == 'PERCENTAGE':
                 if value_dec < 0 or value_dec > 100:
                     return Response({'error': 'Percentage must be between 0 and 100.'}, status=status.HTTP_400_BAD_REQUEST)
-            else: # USD
+            else: # USD or UZS
                 if value_dec < 0:
-                    return Response({'error': 'USD value must be greater than or equal to 0.'}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response({'error': 'Value must be greater than or equal to 0.'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception:
             return Response({'error': 'Invalid value.'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -260,13 +284,15 @@ class CRMCalculationView(APIView):
             user=user,
             name=name,
             value_type=value_type,
-            value=value_dec
+            value=value_dec,
+            basis=basis
         )
         return Response({
             'id': calc.id,
             'name': calc.name,
             'value_type': calc.value_type,
-            'value': float(calc.value)
+            'value': float(calc.value),
+            'basis': calc.basis
         }, status=status.HTTP_201_CREATED)
 
 
@@ -282,12 +308,16 @@ class CRMCalculationDetailView(APIView):
         name = request.data.get('name')
         value_type = request.data.get('value_type')
         value = request.data.get('value')
+        basis = request.data.get('basis', 'PER_SALES')
 
         if not name or value is None or not value_type:
             return Response({'error': 'Name, value, and value_type are required fields.'}, status=status.HTTP_400_BAD_REQUEST)
         
-        if value_type not in ['PERCENTAGE', 'USD']:
-            return Response({'error': 'value_type must be PERCENTAGE or USD.'}, status=status.HTTP_400_BAD_REQUEST)
+        if value_type not in ['PERCENTAGE', 'USD', 'UZS']:
+            return Response({'error': 'value_type must be PERCENTAGE, USD, or UZS.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if basis not in ['PER_PRODUCT', 'PER_SALES']:
+            return Response({'error': 'basis must be PER_PRODUCT or PER_SALES.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             from decimal import Decimal
@@ -295,22 +325,24 @@ class CRMCalculationDetailView(APIView):
             if value_type == 'PERCENTAGE':
                 if value_dec < 0 or value_dec > 100:
                     return Response({'error': 'Percentage must be between 0 and 100.'}, status=status.HTTP_400_BAD_REQUEST)
-            else: # USD
+            else: # USD or UZS
                 if value_dec < 0:
-                    return Response({'error': 'USD value must be greater than or equal to 0.'}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response({'error': 'Value must be greater than or equal to 0.'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception:
             return Response({'error': 'Invalid value.'}, status=status.HTTP_400_BAD_REQUEST)
 
         calc.name = name
         calc.value_type = value_type
         calc.value = value_dec
+        calc.basis = basis
         calc.save()
 
         return Response({
             'id': calc.id,
             'name': calc.name,
             'value_type': calc.value_type,
-            'value': float(calc.value)
+            'value': float(calc.value),
+            'basis': calc.basis
         }, status=status.HTTP_200_OK)
 
     def delete(self, request, pk, *args, **kwargs):

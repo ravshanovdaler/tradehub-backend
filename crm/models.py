@@ -9,10 +9,15 @@ class CRMCalculation(models.Model):
         ('USD', 'USD'),
         ('UZS', 'UZS'),
     ]
+    BASIS_CHOICES = [
+        ('PER_PRODUCT', 'Per Product'),
+        ('PER_SALES', 'Per Sales'),
+    ]
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='crm_calculations')
     name = models.CharField(max_length=100)
     value_type = models.CharField(max_length=15, choices=VALUE_TYPE_CHOICES, default='PERCENTAGE')
     value = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)  # stores either percentage rate or flat USD value
+    basis = models.CharField(max_length=20, choices=BASIS_CHOICES, default='PER_SALES')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -21,4 +26,4 @@ class CRMCalculation(models.Model):
 
     def __str__(self):
         symbol = "%" if self.value_type == 'PERCENTAGE' else " USD"
-        return f"{self.user.username} - {self.name} ({self.value}{symbol})"
+        return f"{self.user.username} - {self.name} ({self.value}{symbol} - {self.basis})"
