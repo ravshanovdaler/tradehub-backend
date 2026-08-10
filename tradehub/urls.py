@@ -27,6 +27,7 @@ urlpatterns = [
     path('api/orders/', include('orders.urls')),
     path('api/chat/', include('chat.urls')),
     path('api/crm/', include('crm.urls')),
+    path('api/telegram/', include('telegram_bot.urls')),
     
     # OpenAPI Schema and API Documentation
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

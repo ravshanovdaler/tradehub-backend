@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'orders',
     'chat',
     'crm',
+    'telegram_bot',
 ]
 
 MIDDLEWARE = [
@@ -241,3 +242,7 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
 }
+
+# ─── Telegram Bot Settings ────────────────────────────────────────────────────
+TELEGRAM_BOT_TOKEN = '8791337666:AAFUrCFT9gZotrsofdcGi_bsTnAEWFC6ycE'
+TELEGRAM_BOT_USERNAME = 'tradetest1232bot'
