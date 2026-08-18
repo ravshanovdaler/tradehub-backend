@@ -1,5 +1,5 @@
 """
-ASGI config for tradehub project.
+ASGI config for Lynk project.
 
 It exposes the ASGI callable as a module-level variable named ``application``.
 
@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/6.0/howto/deployment/asgi/
 
 import os
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tradehub.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'lynk.settings')
 
 # Initialize Django ASGI app early to ensure AppRegistry is populated
 # before importing consumers/routing that reference models

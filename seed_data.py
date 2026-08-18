@@ -2,7 +2,7 @@ import os
 import django
 import random
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tradehub.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'lynk.settings')
 django.setup()
 
 from django.utils import timezone

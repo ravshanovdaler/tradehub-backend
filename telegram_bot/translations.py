@@ -1,16 +1,16 @@
 """
-Translation strings for TradeHub Telegram Bot in English, Russian, and Uzbek.
+Translation strings for Lynk Telegram Bot in English, Russian, and Uzbek.
 """
 
 TRANSLATIONS = {
     'en': {
         # Bot Core & Commands
         'welcome_linked': (
-            "🎉 *Success!* Your account *{username}* has been successfully linked to TradeHub.\n\n"
+            "🎉 *Success!* Your account *{username}* has been successfully linked to Lynk.\n\n"
             "You will now receive notifications here for sales, new messages, and status updates."
         ),
         'welcome_unlinked': (
-            "👋 *Welcome to TradeHub Bot!*\n\n"
+            "👋 *Welcome to Lynk Bot!*\n\n"
             "I can notify you when you get new orders (sales), chat messages, and KYC status updates.\n\n"
             "To link your account, you can:\n"
             "1. Log in on the website, go to your profile, and click *Link Telegram Bot*.\n"
@@ -31,12 +31,12 @@ TRANSLATIONS = {
         'user_not_found': "❌ *Error:* No user found with that identifier.",
         'login_success': (
             "🎉 *Success!* Logged in successfully as *{username}*.\n\n"
-            "Your Telegram is now linked to TradeHub."
+            "Your Telegram is now linked to Lynk."
         ),
         'login_invalid_password': "❌ *Error:* Invalid password.",
         'account_pending_deletion': "❌ *Error:* This account is pending deletion.",
         'logout_success': "🔌 *Logged out.* Account *{username}* has been unlinked from this Telegram.",
-        'logout_not_logged_in': "ℹ️ You are not logged in or linked to any TradeHub account.",
+        'logout_not_logged_in': "ℹ️ You are not logged in or linked to any Lynk account.",
         'status_linked': (
             "ℹ️ *Status: Linked*\n"
             "• *Username:* {username}\n"
@@ -51,7 +51,7 @@ TRANSLATIONS = {
         'language_changed': "✅ *Language updated to English.* 🇬🇧",
         'help_text': (
             "💡 *Available Commands:*\n\n"
-            "• `/login <username> <password>` - Log in and link your TradeHub account\n"
+            "• `/login <username> <password>` - Log in and link your Lynk account\n"
             "• `/logout` - Unlink your account\n"
             "• `/status` - Check your link status and settings\n"
             "• `/language` - Change language (English / Русский / Oʻzbekcha)\n"
@@ -101,11 +101,11 @@ TRANSLATIONS = {
     'ru': {
         # Bot Core & Commands
         'welcome_linked': (
-            "🎉 *Успешно!* Ваш аккаунт *{username}* привязан к TradeHub.\n\n"
+            "🎉 *Успешно!* Ваш аккаунт *{username}* привязан к Lynk.\n\n"
             "Теперь вы будете получать уведомления о продажах, новых сообщениях и обновлениях статуса."
         ),
         'welcome_unlinked': (
-            "👋 *Добро пожаловать в бота TradeHub!*\n\n"
+            "👋 *Добро пожаловать в бота Lynk!*\n\n"
             "Я могу уведомлять вас о новых заказах (продажах), чат-сообщениях и статусе верификации KYC.\n\n"
             "Чтобы привязать аккаунт, вы можете:\n"
             "1. Войти на сайт, перейти в настройки профиля и нажать *Привязать Telegram Bot*.\n"
@@ -126,12 +126,12 @@ TRANSLATIONS = {
         'user_not_found': "❌ *Ошибка:* Пользователь с таким логином/email/телефоном не найден.",
         'login_success': (
             "🎉 *Успешно!* Вы вошли как *{username}*.\n\n"
-            "Ваш Telegram аккаунт привязан к TradeHub."
+            "Ваш Telegram аккаунт привязан к Lynk."
         ),
         'login_invalid_password': "❌ *Ошибка:* Неверный пароль.",
         'account_pending_deletion': "❌ *Ошибка:* Этот аккаунт ожидает удаления.",
         'logout_success': "🔌 *Выход выполнен.* Аккаунт *{username}* отвязан от этого Telegram.",
-        'logout_not_logged_in': "ℹ️ Вы не вошли в аккаунт и не привязаны к TradeHub.",
+        'logout_not_logged_in': "ℹ️ Вы не вошли в аккаунт и не привязаны к Lynk.",
         'status_linked': (
             "ℹ️ *Статус: Привязан*\n"
             "• *Имя пользователя:* {username}\n"
@@ -146,7 +146,7 @@ TRANSLATIONS = {
         'language_changed': "✅ *Язык изменен на Русский.* 🇷🇺",
         'help_text': (
             "💡 *Доступные команды:*\n\n"
-            "• `/login <логин> <пароль>` - Войти и привязать аккаунт TradeHub\n"
+            "• `/login <логин> <пароль>` - Войти и привязать аккаунт Lynk\n"
             "• `/logout` - Отвязать аккаунт\n"
             "• `/status` - Проверить статус привязки и настройки\n"
             "• `/language` - Изменить язык (English / Русский / Oʻzbekcha)\n"
@@ -196,11 +196,11 @@ TRANSLATIONS = {
     'uz': {
         # Bot Core & Commands
         'welcome_linked': (
-            "🎉 *Muvaffaqiyatli!* Sizning *{username}* hisobingiz TradeHub'ga ulandi.\n\n"
+            "🎉 *Muvaffaqiyatli!* Sizning *{username}* hisobingiz Lynk'ga ulandi.\n\n"
             "Endi bu yerda sotuvlar, yangi xabarlar va status yangilanishlari haqida bildirishnomalar olasiz."
         ),
         'welcome_unlinked': (
-            "👋 *TradeHub Botiga xush kelibsiz!*\n\n"
+            "👋 *Lynk Botiga xush kelibsiz!*\n\n"
             "Men sizga yangi buyurtmalar (sotuvlar), chat xabarlari va KYC tasdiqlash statusi haqida xabar bera olaman.\n\n"
             "Hisobingizni ulash uchun:\n"
             "1. Saytga kiring, profil sozlamalariga o'ting va *Telegram Botni ulash* tugmasini bosing.\n"
@@ -221,12 +221,12 @@ TRANSLATIONS = {
         'user_not_found': "❌ *Xatolik:* Ushbu ma'lumotga ega foydalanuvchi topilmadi.",
         'login_success': (
             "🎉 *Muvaffaqiyatli!* *{username}* sifatida tizimga kirdingiz.\n\n"
-            "Sizning Telegram hisobingiz TradeHub'ga ulandi."
+            "Sizning Telegram hisobingiz Lynk'ga ulandi."
         ),
         'login_invalid_password': "❌ *Xatolik:* Parol noto'g'ri.",
         'account_pending_deletion': "❌ *Xatolik:* Ushbu hisob o'chirilish kutilmoqda.",
         'logout_success': "🔌 *Tizimdan chiqildi.* *{username}* hisobi ushbu Telegram'dan uzildi.",
-        'logout_not_logged_in': "ℹ️ Siz tizimga kirmagansiz yoki biron bir TradeHub hisobiga ulanmagansiz.",
+        'logout_not_logged_in': "ℹ️ Siz tizimga kirmagansiz yoki biron bir Lynk hisobiga ulanmagansiz.",
         'status_linked': (
             "ℹ️ *Status: Ulandilar*\n"
             "• *Foydalanuvchi nomi:* {username}\n"
@@ -241,7 +241,7 @@ TRANSLATIONS = {
         'language_changed': "✅ *Til Oʻzbekchaga oʻzgartirildi.* 🇺🇿",
         'help_text': (
             "💡 *Mavjud buyruqlar:*\n\n"
-            "• `/login <foydalanuvchi_nomi> <parol>` - Tizimga kirish va TradeHub hisobini ulash\n"
+            "• `/login <foydalanuvchi_nomi> <parol>` - Tizimga kirish va Lynk hisobini ulash\n"
             "• `/logout` - Hisobni uzish\n"
             "• `/status` - Ulanish statusi va sozlamalarni tekshirish\n"
             "• `/language` - Tilni o'zgartirish (English / Русский / Oʻzbekcha)\n"

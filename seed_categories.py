@@ -2,7 +2,7 @@ import os
 import sys
 import django
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'tradehub.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'lynk.settings')
 django.setup()
 
 from products.models import Category

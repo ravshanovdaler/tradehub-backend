@@ -1,1 +1,1 @@
-# tradehub-backend
+# lynk-backend
