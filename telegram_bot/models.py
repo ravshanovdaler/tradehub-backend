@@ -2,9 +2,16 @@ from django.db import models
 from django.conf import settings
 
 class TelegramProfile(models.Model):
+    LANGUAGE_CHOICES = (
+        ('en', 'English'),
+        ('ru', 'Русский'),
+        ('uz', 'Oʻzbekcha'),
+    )
+
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='telegram_profile')
     chat_id = models.CharField(max_length=100, unique=True, blank=True, null=True)
     auth_token = models.CharField(max_length=64, unique=True, blank=True, null=True)
+    language = models.CharField(max_length=10, choices=LANGUAGE_CHOICES, default='en')
     notifications_enabled = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

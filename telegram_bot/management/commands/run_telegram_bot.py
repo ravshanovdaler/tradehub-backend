@@ -5,7 +5,7 @@ import urllib.request
 import urllib.error
 from django.core.management.base import BaseCommand
 from django.conf import settings
-from telegram_bot.bot_logic import handle_telegram_message
+from telegram_bot.bot_logic import handle_telegram_message, handle_telegram_callback_query
 
 logger = logging.getLogger(__name__)
 
@@ -48,11 +48,21 @@ class Command(BaseCommand):
                             sender_username = message.get("from", {}).get("username", "unknown")
 
                             if chat_id and text:
-                                self.stdout.write(self.style.HTTP_INFO(f"Received from @{sender_username} ({chat_id}): {text}"))
+                                self.stdout.write(self.style.HTTP_INFO(f"Received message from @{sender_username} ({chat_id}): {text}"))
                                 try:
                                     handle_telegram_message(chat_id, text)
                                 except Exception as e:
                                     self.stderr.write(self.style.ERROR(f"Error handling message: {e}"))
+
+                        elif "callback_query" in update:
+                            cb_query = update["callback_query"]
+                            data = cb_query.get("data")
+                            sender_username = cb_query.get("from", {}).get("username", "unknown")
+                            self.stdout.write(self.style.HTTP_INFO(f"Received callback from @{sender_username}: {data}"))
+                            try:
+                                handle_telegram_callback_query(cb_query)
+                            except Exception as e:
+                                self.stderr.write(self.style.ERROR(f"Error handling callback query: {e}"))
 
             except KeyboardInterrupt:
                 self.stdout.write(self.style.SUCCESS("\nExiting polling loop..."))
