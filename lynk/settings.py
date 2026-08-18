@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-kfd#_6p4be#y0*&3-2*q^)l+3lp&68dh0047z8rcy-2(_na7do
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '0.0.0.0', 'dalerravshanov.pythonanywhere.com']
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -145,6 +145,19 @@ CHANNEL_LAYERS = {
 
 # CORS configuration
 CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+CORS_EXPOSE_HEADERS = ['*']
 
 # REST Framework authentication
 REST_FRAMEWORK = {
