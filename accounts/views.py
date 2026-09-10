@@ -5,6 +5,7 @@ from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate, get_user_model
 from django.contrib.auth.hashers import make_password
 from django.core.mail import send_mail, EmailMessage
+from .email_utils import send_registration_otp, send_resend_otp, send_password_reset_otp
 from django.conf import settings
 from django.utils import timezone
 from .serializers import (
@@ -68,12 +69,10 @@ class RegisterView(APIView):
         )
         
         try:
-            send_mail(
-                subject='Verify your email - UzB2B Wholesale',
-                message=f"Hello,\n\nWelcome to UzB2B Wholesale Marketplace!\n\nYour email verification code is: {otp}\n\nBest regards,\nUzB2B Team",
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email],
-                fail_silently=True,
+            send_registration_otp(
+                email=email,
+                otp=otp,
+                first_name=data.get('first_name', ''),
             )
         except Exception:
             pass
@@ -171,13 +170,7 @@ class ResendOTPView(APIView):
         pending.save()
 
         try:
-            send_mail(
-                subject='Your new verification code - UzB2B',
-                message=f"Hello,\n\nYour new verification code is: {otp}\n\nBest regards,\nUzB2B Team",
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email],
-                fail_silently=True,
-            )
+            send_resend_otp(email=email, otp=otp)
         except Exception:
             pass
 
@@ -469,12 +462,10 @@ class PasswordResetRequestView(APIView):
         user.save()
 
         try:
-            send_mail(
-                subject='Reset your password - UzB2B Wholesale',
-                message=f"Hello,\n\nYou requested a password reset. Your verification code is: {otp}\n\nBest regards,\nUzB2B Team",
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-                fail_silently=True,
+            send_password_reset_otp(
+                email=user.email,
+                otp=otp,
+                first_name=user.first_name,
             )
         except Exception:
             pass
