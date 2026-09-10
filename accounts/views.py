@@ -456,8 +456,8 @@ class PasswordResetRequestView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        email = serializer.validated_data['email']
-        user = User.objects.filter(email=email).first()
+        email = serializer.validated_data['email'].strip()
+        user = User.objects.filter(email__iexact=email).first()
         if not user:
             return Response(
                 {'error': 'No account found with this email address. Please enter the email you registered with.'},
@@ -473,7 +473,7 @@ class PasswordResetRequestView(APIView):
                 subject='Reset your password - UzB2B Wholesale',
                 message=f"Hello,\n\nYou requested a password reset. Your verification code is: {otp}\n\nBest regards,\nUzB2B Team",
                 from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email],
+                recipient_list=[user.email],
                 fail_silently=True,
             )
         except Exception:
@@ -494,11 +494,11 @@ class PasswordResetConfirmView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        email = serializer.validated_data['email']
-        otp = serializer.validated_data['otp']
+        email = serializer.validated_data['email'].strip()
+        otp = serializer.validated_data['otp'].strip()
         new_password = serializer.validated_data['new_password']
 
-        user = User.objects.filter(email=email).first()
+        user = User.objects.filter(email__iexact=email).first()
         if not user or user.email_otp != otp:
             return Response({'otp': ['Invalid email or verification code.']}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -506,7 +506,14 @@ class PasswordResetConfirmView(APIView):
         user.email_otp = None
         user.save()
 
-        return Response({'message': 'Password has been reset successfully.'}, status=status.HTTP_200_OK)
+        # Generate a fresh token for immediate auth if needed
+        Token.objects.filter(user=user).delete()
+        token, _ = Token.objects.get_or_create(user=user)
+
+        return Response({
+            'message': 'Password has been reset successfully.',
+            'token': token.key
+        }, status=status.HTTP_200_OK)
 
 
 class DeleteAccountView(APIView):
